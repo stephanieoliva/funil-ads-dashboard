@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<title>Funil ADS — Dashboard</title>
+<style>
+:root{color-scheme:light;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;color:#1a1d2e;font-size:13px;}
+
+.hdr{background:#1a1d2e;color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;}
+.hdr h1{font-size:14px;font-weight:700;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.last-updated{font-size:10px;color:#8892a4;}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 20px;background:#fff;border-bottom:1px solid #e5e7eb;}
+.ctrl-group{display:flex;align-items:center;gap:6px;}
+.ctrl-label{font-size:10px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;}
+.slice-btn{padding:4px 12px;border:1px solid #d1d5db;border-radius:5px;background:#fff;font-size:11px;font-weight:600;color:#374151;cursor:pointer;transition:.15s;}
+.slice-btn:hover{background:#f3f4f6;}
+.slice-btn.active{background:#6c63ff;color:#fff;border-color:#6c63ff;}
+.date-inp{font-size:11px;padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;color:#374151;background:#fff;cursor:pointer;}
+.date-inp:focus{outline:none;border-color:#6c63ff;}
+.vend-select{font-size:11px;padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;color:#374151;background:#fff;cursor:pointer;min-width:140px;}
+.vend-select:focus{outline:none;border-color:#6c63ff;}
+#vendedorGroup{display:none;}
+
+.main{padding:16px 20px;}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.chart-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:16px 20px;margin-bottom:16px;}
+.chart-row .chart-card{margin-bottom:0;}
+.chart-card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.chart-card-hdr h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#374151;}
+.chart-wrap{position:relative;height:300px;}
+.chart-wrap-lg{position:relative;height:320px;}
+.loading-overlay{position:absolute;inset:0;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;border-radius:8px;z-index:10;}
+.spinner{width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#6c63ff;border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.error-msg{color:#e0555e;font-size:12px;padding:20px;text-align:center;}
+.global-error{display:none;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;font-size:12px;font-weight:600;padding:10px 20px;text-align:center;}
+.footer-note{font-size:10px;color:#9ca3af;text-align:center;padding:10px 20px 20px;}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>Funil ADS — Dashboard</h1>
+  <div class="hdr-right">
+    <span class="last-updated" id="lastUpdated">Atualizado em __BUILD_TIME__</span>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <span class="ctrl-label">Granularidade</span>
+    <button class="slice-btn" id="btn-daily"   onclick="setGran('daily')">Diário</button>
+    <button class="slice-btn" id="btn-weekly"  onclick="setGran('weekly')">Semanal</button>
+    <button class="slice-btn active" id="btn-monthly" onclick="setGran('monthly')">Mensal</button>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">Visualização</span>
+    <button class="slice-btn active" id="btn-view-origin"   onclick="setView('origin')">Por Origem</button>
+    <button class="slice-btn"        id="btn-view-total"    onclick="setView('total')">Total</button>
+    <button class="slice-btn"        id="btn-view-vendedor" onclick="setView('vendedor')">Por Vendedor</button>
+  </div>
+  <div class="ctrl-group" id="vendedorGroup">
+    <span class="ctrl-label">Vendedor</span>
+    <select class="vend-select" id="vendedorSelect" onchange="setVendedor(this.value)">
+      <option value="todos">Todos</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <span class="ctrl-label">De</span>
+    <input type="date" class="date-inp" id="dateFrom" onchange="setDateFrom(this.value)">
+    <span class="ctrl-label">Até</span>
+    <input type="date" class="date-inp" id="dateTo" onchange="setDateTo(this.value)">
+  </div>
+</div>
+
+<div id="globalError" class="global-error"></div>
+<div class="main">
+
+  <!-- Row 1: Leads + Cadastros -->
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-card-hdr"><h2>Leads por Origem</h2></div>
+      <div class="chart-wrap">
+        <div class="loading-overlay" id="loadingLeads"><div class="spinner"></div></div>
+        <canvas id="chartLeads"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-hdr"><h2>Cadastros por Origem</h2></div>
+      <div class="chart-wrap"><canvas id="chartCadastros"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Ativações -->
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-card-hdr"><h2>Ativações Vendido</h2></div>
+      <div class="chart-wrap"><canvas id="chartAtivVendido"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-hdr"><h2>Ativações Entregue</h2></div>
+      <div class="chart-wrap"><canvas id="chartAtivEntregue"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Conversões lado a lado -->
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-card-hdr"><h2>Lead → Cadastro (%)</h2></div>
+      <div class="chart-wrap"><canvas id="chartConvLeadCad"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-hdr"><h2>Cadastro → Ativação Entregue (%)</h2></div>
+      <div class="chart-wrap"><canvas id="chartConvCadAtiv"></canvas></div>
+    </div>
+  </div>
+
+</div>
+<div class="footer-note">Dashboard estático publicado a partir do Google Sheets "Funil ADS [temporário]" — atualiza automaticamente 1x por dia.</div>
+
+<script>
+// ─── EMBEDDED DATA (gerado automaticamente, não editar à mão) ────────────────
+const EMBEDDED_CSV_B64 = "__CSV_B64__";
+
+const ORIGIN_COLORS = {
+  'Campanha Ads':   'rgba(108,99,255,0.85)',
+  'Campanha Ads 2': 'rgba(16,185,129,0.85)',
+  'Campanha Ads 3': 'rgba(245,158,11,0.85)',
+  'Patagon':        'rgba(239,68,68,0.85)',
+};
+const DEFAULT_COLOR = 'rgba(156,163,175,0.85)';
+const VENDEDOR_COLOR_POOL = [
+  'rgba(14,165,233,0.85)','rgba(168,85,247,0.85)','rgba(234,88,12,0.85)',
+  'rgba(20,184,166,0.85)','rgba(236,72,153,0.85)','rgba(132,204,22,0.85)',
+  'rgba(251,191,36,0.85)','rgba(99,102,241,0.85)','rgba(239,68,68,0.85)',
+  'rgba(16,185,129,0.85)','rgba(245,158,11,0.85)','rgba(108,99,255,0.85)',
+];
+let _vendedorColorMap = {};
+
+let _rawRows = [];
+let _gran     = 'monthly';
+let _viewMode = 'origin';
+let _vendedor = 'todos';
+let _dateFrom = '2025-09-01';
+let _dateTo   = new Date().toISOString().slice(0,10);
+const _charts = { leads:null, cadastros:null, ativVendido:null, ativEntregue:null, convLeadCad:null, convCadAtiv:null };
+
+// ─── CSV PARSER ───────────────────────────────────────────────────────────────
+function splitCSVLine(line){
+  const result=[]; let cur='', inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){inQ=!inQ;}
+    else if(c===','&&!inQ){result.push(cur);cur='';}
+    else cur+=c;
+  }
+  result.push(cur);
+  return result;
+}
+function parseCSV(text){
+  const lines=text.split(/\r?\n/);
+  const header=splitCSVLine(lines[0]).map(h=>h.trim().replace(/^"|"$/g,''));
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const vals=splitCSVLine(lines[i]);
+    const row={};
+    header.forEach((h,j)=>{ row[h]=(vals[j]||'').trim().replace(/^"|"$/g,''); });
+    rows.push(row);
+  }
+  return rows;
+}
+
+// ─── DATE HELPERS ─────────────────────────────────────────────────────────────
+function ddmmyyyyToISO(s){
+  if(!s||!s.includes('/')) return '';
+  const p=s.split('/');
+  if(p.length!==3) return '';
+  return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+}
+function ddmmyyToISO(s){
+  if(!s||!s.includes('/')) return '';
+  const [d,m,y]=s.split('/');
+  if(!d||!m||!y) return '';
+  const fullY=parseInt(y)<50?'20'+y:'19'+y;
+  return `${fullY}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+}
+function sortKey(p,gran){
+  if(gran==='daily') return p;
+  return ddmmyyyyToISO(p)||p;
+}
+function periodLabel(p,gran){
+  if(gran==='daily'){
+    const [y,m,d]=p.split('-'); return `${d}/${m}`;
+  } else if(gran==='weekly'){
+    return `Sem ${p.slice(0,5)}`;
+  } else {
+    const M=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const [d,m,y]=p.split('/');
+    return `${M[parseInt(m)-1]}/${y.slice(2)}`;
+  }
+}
+
+// ─── LOAD (dados embutidos, sem chamada de rede) ──────────────────────────────
+function loadData(){
+  try{
+    const bin = atob(EMBEDDED_CSV_B64);
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    const csv = new TextDecoder('utf-8').decode(bytes);
+    _rawRows = parseCSV(csv);
+    populateVendedorDropdown();
+    render();
+  }catch(e){
+    console.error('loadData:',e);
+    document.getElementById('loadingLeads').style.display='none';
+    const el=document.getElementById('globalError');
+    el.textContent=`⚠️ Erro ao carregar dados embutidos: ${e.message}`;
+    el.style.display='block';
+  }
+}
+
+// ─── GENERIC BAR CHART BUILDER ────────────────────────────────────────────────
+function buildAndRenderChart(cfg){
+  const isVendedorMode = _viewMode==='vendedor' && cfg.isAtivacao;
+  const groupCol = isVendedorMode ? 'vendedor ativação' : 'origem do lead';
+  const colorMap  = isVendedorMode ? _vendedorColorMap : ORIGIN_COLORS;
+
+  let filtered=_rawRows.filter(r=>{
+    const d=r[cfg.dateCol]; if(!d) return false;
+    const iso=cfg.toISO(d);
+    return iso&&iso>=_dateFrom&&iso<=_dateTo;
+  });
+
+  if(isVendedorMode && _vendedor!=='todos'){
+    filtered=filtered.filter(r=>(r['vendedor ativação']||'Sem vendedor')===_vendedor);
+  }
+
+  const periodMap={}, groupsSet=new Set();
+  filtered.forEach(r=>{
+    let period;
+    if(_gran==='daily')       period=cfg.toISO(r[cfg.dateCol]);
+    else if(_gran==='weekly') period=r[cfg.semanaCol];
+    else                      period=r[cfg.mesCol];
+    if(!period) return;
+    const group=r[groupCol]||'Outros';
+    groupsSet.add(group);
+    if(!periodMap[period]) periodMap[period]={};
+    periodMap[period][group]=(periodMap[period][group]||0)+1;
+  });
+
+  const periods=Object.keys(periodMap).sort((a,b)=>sortKey(a,_gran).localeCompare(sortKey(b,_gran)));
+  const allGroups=[...groupsSet].sort((a,b)=>{
+    const ta=Object.values(periodMap).reduce((s,p)=>s+(p[a]||0),0);
+    const tb=Object.values(periodMap).reduce((s,p)=>s+(p[b]||0),0);
+    return tb-ta;
+  });
+
+  const labels=periods.map(p=>periodLabel(p,_gran));
+  let datasets,stacked;
+
+  const effectiveTotal = _viewMode==='total' || (isVendedorMode && _vendedor!=='todos');
+
+  if(effectiveTotal){
+    stacked=false;
+    const label = (isVendedorMode && _vendedor!=='todos') ? _vendedor : cfg.totalLabel;
+    datasets=[{
+      label,
+      data:periods.map(p=>Object.values(periodMap[p]).reduce((s,v)=>s+v,0)),
+      backgroundColor:cfg.totalColor,borderRadius:4,borderSkipped:false,
+    }];
+  } else {
+    stacked=true;
+    datasets=allGroups.map(g=>({
+      label:g,
+      data:periods.map(p=>periodMap[p][g]||0),
+      backgroundColor:colorMap[g]||DEFAULT_COLOR,
+      borderRadius:4,borderSkipped:false,
+    }));
+  }
+
+  drawGenericBarChart(cfg.chartKey,cfg.canvasId,labels,datasets,stacked);
+}
+
+// ─── CONVERSION CHARTS ────────────────────────────────────────────────────────
+function buildAndRenderConversionChart(){
+  const leadsMap={};
+  const cadsMap={};
+  const ativEMap={};
+  const originsSet=new Set();
+
+  _rawRows.forEach(r=>{
+    const origin=r['origem do lead']||'Outros';
+    originsSet.add(origin);
+
+    const d=r['data lead'];
+    if(d&&d>=_dateFrom&&d<=_dateTo){
+      const lp=_gran==='daily'?d:_gran==='weekly'?r['semana lead']:r['mês lead'];
+      if(lp){
+        if(!leadsMap[lp]) leadsMap[lp]={};
+        leadsMap[lp][origin]=(leadsMap[lp][origin]||0)+1;
+      }
+    }
+
+    if(r['data cadastro']){
+      const cp=_gran==='daily'?ddmmyyToISO(r['data cadastro']):_gran==='weekly'?r['semana cadastro']:r['mês cadastro'];
+      if(cp){
+        if(!cadsMap[cp]) cadsMap[cp]={};
+        cadsMap[cp][origin]=(cadsMap[cp][origin]||0)+1;
+      }
+    }
+
+    if(r['data ativação entregue']){
+      const ep=_gran==='daily'?ddmmyyyyToISO(r['data ativação entregue']):_gran==='weekly'?r['semana ativação entregue']:r['mês ativação entregue'];
+      if(ep){
+        if(!ativEMap[ep]) ativEMap[ep]={};
+        ativEMap[ep][origin]=(ativEMap[ep][origin]||0)+1;
+      }
+    }
+  });
+
+  const sumObj=obj=>Object.values(obj||{}).reduce((s,v)=>s+v,0);
+  const pct=(a,b)=>b>0?Math.round(a/b*100):null;
+
+  const periods=Object.keys(leadsMap).sort((a,b)=>sortKey(a,_gran).localeCompare(sortKey(b,_gran)));
+  const labels=periods.map(p=>periodLabel(p,_gran));
+  const allOrigins=[...originsSet].sort();
+
+  let datasetsLC, datasetsCA;
+
+  if(_viewMode==='total'){
+    datasetsLC=[{
+      label:'Lead → Cadastro',
+      data:periods.map(p=>pct(sumObj(cadsMap[p]),sumObj(leadsMap[p]))),
+      backgroundColor:'rgba(16,185,129,0.75)',
+      borderRadius:4,borderSkipped:false,
+    }];
+    datasetsCA=[{
+      label:'Cadastro → Ativação Entregue',
+      data:periods.map(p=>pct(sumObj(ativEMap[p]),sumObj(cadsMap[p]))),
+      backgroundColor:'rgba(239,68,68,0.75)',
+      borderRadius:4,borderSkipped:false,
+    }];
+  } else {
+    datasetsLC=allOrigins.map(origin=>({
+      label:origin,
+      data:periods.map(p=>pct(cadsMap[p]?.[origin]||0, leadsMap[p]?.[origin]||0)),
+      backgroundColor:ORIGIN_COLORS[origin]||DEFAULT_COLOR,
+      borderRadius:4,borderSkipped:false,
+    }));
+    datasetsCA=allOrigins.map(origin=>({
+      label:origin,
+      data:periods.map(p=>pct(ativEMap[p]?.[origin]||0, cadsMap[p]?.[origin]||0)),
+      backgroundColor:ORIGIN_COLORS[origin]||DEFAULT_COLOR,
+      borderRadius:4,borderSkipped:false,
+    }));
+  }
+
+  drawConversionBarChart('convLeadCad','chartConvLeadCad',labels,datasetsLC);
+  drawConversionBarChart('convCadAtiv','chartConvCadAtiv',labels,datasetsCA);
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function render(){
+  const CFGS=[
+    {chartKey:'leads',       canvasId:'chartLeads',
+     dateCol:'data lead',    semanaCol:'semana lead',      mesCol:'mês lead',
+     toISO:d=>d, totalLabel:'Total de Leads',totalColor:'rgba(108,99,255,0.85)'},
+    {chartKey:'cadastros',   canvasId:'chartCadastros',
+     dateCol:'data cadastro',semanaCol:'semana cadastro',  mesCol:'mês cadastro',
+     toISO:ddmmyyToISO, totalLabel:'Total de Cadastros',totalColor:'rgba(16,185,129,0.85)'},
+    {chartKey:'ativVendido', canvasId:'chartAtivVendido', isAtivacao:true,
+     dateCol:'data ativação vendido',  semanaCol:'semana ativação vendido',  mesCol:'mês ativação vendido',
+     toISO:ddmmyyyyToISO, totalLabel:'Total Ativ. Vendido',totalColor:'rgba(245,158,11,0.85)'},
+    {chartKey:'ativEntregue',canvasId:'chartAtivEntregue', isAtivacao:true,
+     dateCol:'data ativação entregue', semanaCol:'semana ativação entregue', mesCol:'mês ativação entregue',
+     toISO:ddmmyyyyToISO, totalLabel:'Total Ativ. Entregue',totalColor:'rgba(239,68,68,0.85)'},
+  ];
+
+  CFGS.forEach(cfg=>buildAndRenderChart(cfg));
+  buildAndRenderConversionChart();
+  document.getElementById('loadingLeads').style.display='none';
+}
+
+// ─── TOTAL LABEL PLUGIN (bar charts) ──────────────────────────────────────────
+const _totalLabelPlugin={
+  id:'totalLabels',
+  afterDatasetsDraw(chart){
+    const {ctx}=chart;
+    const meta0=chart.getDatasetMeta(0);
+    if(!meta0) return;
+    const n=meta0.data.length;
+    for(let i=0;i<n;i++){
+      let total=0;
+      chart.data.datasets.forEach((_,di)=>{total+=chart.data.datasets[di].data[i]||0;});
+      if(!total) continue;
+      const lastMeta=chart.getDatasetMeta(chart.data.datasets.length-1);
+      const bar=lastMeta.data[i];
+      ctx.save();
+      ctx.font='bold 9px system-ui,sans-serif';
+      ctx.fillStyle='#374151';
+      ctx.textAlign='center';
+      ctx.textBaseline='bottom';
+      ctx.fillText(total,bar.x,bar.y-2);
+      ctx.restore();
+    }
+  }
+};
+
+// ─── GENERIC BAR DRAW ─────────────────────────────────────────────────────────
+function drawGenericBarChart(key,canvasId,labels,datasets,stacked){
+  const canvas=document.getElementById(canvasId);
+  if(_charts[key]){
+    _charts[key].data.labels=labels;
+    _charts[key].data.datasets=datasets;
+    _charts[key].options.scales.x.stacked=stacked;
+    _charts[key].options.scales.y.stacked=stacked;
+    _charts[key].update();
+    return;
+  }
+  _charts[key]=new Chart(canvas,{
+    type:'bar',data:{labels,datasets},
+    plugins:[_totalLabelPlugin],
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:10},boxWidth:10,padding:10}},
+        tooltip:{callbacks:{footer(items){
+          const sum=items.reduce((s,i)=>s+i.parsed.y,0);
+          return items.length>1?`Total: ${sum}`:'';
+        }}}
+      },
+      scales:{
+        x:{stacked,ticks:{font:{size:9},maxRotation:45},grid:{display:false}},
+        y:{stacked,beginAtZero:true,ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}},
+      },
+      layout:{padding:{top:14}},
+    }
+  });
+}
+
+// ─── PCT LABEL PLUGIN (conversion bar) ───────────────────────────────────────
+const _pctLabelPlugin={
+  id:'pctLabels',
+  afterDatasetsDraw(chart){
+    const {ctx}=chart;
+    chart.data.datasets.forEach((ds,di)=>{
+      const meta=chart.getDatasetMeta(di);
+      meta.data.forEach((bar,i)=>{
+        const val=ds.data[i];
+        if(val==null) return;
+        ctx.save();
+        ctx.font='bold 12px system-ui,sans-serif';
+        ctx.fillStyle='#111827';
+        ctx.textAlign='center';
+        ctx.textBaseline='bottom';
+        ctx.fillText(val+'%',bar.x,bar.y-4);
+        ctx.restore();
+      });
+    });
+  }
+};
+
+// ─── CONVERSION BAR DRAW ─────────────────────────────────────────────────────
+function drawConversionBarChart(key,canvasId,labels,datasets){
+  const canvas=document.getElementById(canvasId);
+  if(_charts[key]){
+    _charts[key].data.labels=labels;
+    _charts[key].data.datasets=datasets;
+    _charts[key].update();
+    return;
+  }
+  _charts[key]=new Chart(canvas,{
+    type:'bar',data:{labels,datasets},
+    plugins:[_pctLabelPlugin],
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:10},boxWidth:10,padding:10}},
+        tooltip:{callbacks:{label(item){return `${item.dataset.label}: ${item.parsed.y??'—'}%`;}}}
+      },
+      scales:{
+        x:{ticks:{font:{size:9},maxRotation:45},grid:{display:false}},
+        y:{beginAtZero:true,max:100,ticks:{font:{size:9},callback:v=>`${v}%`},grid:{color:'rgba(0,0,0,.05)'}},
+      },
+      layout:{padding:{top:28}},
+    }
+  });
+}
+
+// ─── CONTROLS ─────────────────────────────────────────────────────────────────
+function setGran(g){
+  _gran=g;
+  ['daily','weekly','monthly'].forEach(x=>{
+    const b=document.getElementById(`btn-${x}`);
+    if(b) b.classList.toggle('active',x===g);
+  });
+  if(_rawRows.length) render();
+}
+function setView(v){
+  _viewMode=v;
+  ['origin','total','vendedor'].forEach(x=>{
+    const b=document.getElementById(`btn-view-${x}`);
+    if(b) b.classList.toggle('active',x===v);
+  });
+  document.getElementById('vendedorGroup').style.display=(v==='vendedor')?'flex':'none';
+  if(_rawRows.length) render();
+}
+function setVendedor(v){
+  _vendedor=v;
+  if(_rawRows.length) render();
+}
+function populateVendedorDropdown(){
+  const vendedores=new Set();
+  _rawRows.forEach(r=>{
+    const v=r['vendedor ativação'];
+    if(v) vendedores.add(v);
+  });
+  const sorted=[...vendedores].sort();
+  sorted.forEach((v,i)=>{ _vendedorColorMap[v]=VENDEDOR_COLOR_POOL[i%VENDEDOR_COLOR_POOL.length]; });
+  const sel=document.getElementById('vendedorSelect');
+  sel.innerHTML='<option value="todos">Todos</option>';
+  sorted.forEach(v=>{
+    const o=document.createElement('option');
+    o.value=v; o.textContent=v;
+    sel.appendChild(o);
+  });
+}
+function setDateFrom(v){ _dateFrom=v; if(_rawRows.length) render(); }
+function setDateTo(v){   _dateTo=v;   if(_rawRows.length) render(); }
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+(()=>{
+  const today=new Date().toISOString().slice(0,10);
+  const from='2025-09-01';
+  document.getElementById('dateFrom').value=from;
+  document.getElementById('dateTo').value=today;
+  _dateFrom=from; _dateTo=today;
+  loadData();
+})();
+</script>
+</body>
+</html>
