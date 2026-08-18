@@ -191,6 +191,16 @@ function ddmmyyToISO(s){
   const fullY=parseInt(y)<50?'20'+y:'19'+y;
   return `${fullY}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
 }
+// A coluna "data lead" da planilha mistura dois formatos (ISO "AAAA-MM-DD" em
+// linhas antigas e "DD/MM/AAAA" em linhas mais recentes). Sem essa normalização,
+// as linhas em DD/MM/AAAA ficam fora do filtro de datas (comparação de texto
+// incorreta) e somem dos gráficos — foi o que causou o corte em 07/08.
+function flexToISO(s){
+  if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return ddmmyyyyToISO(s);
+  return s;
+}
 function sortKey(p,gran){
   if(gran==='daily') return p;
   return ddmmyyyyToISO(p)||p;
@@ -298,7 +308,7 @@ function buildAndRenderConversionChart(){
     const origin=r['origem do lead']||'Outros';
     originsSet.add(origin);
 
-    const d=r['data lead'];
+    const d=flexToISO(r['data lead']);
     if(d&&d>=_dateFrom&&d<=_dateTo){
       const lp=_gran==='daily'?d:_gran==='weekly'?r['semana lead']:r['mês lead'];
       if(lp){
@@ -370,7 +380,7 @@ function render(){
   const CFGS=[
     {chartKey:'leads',       canvasId:'chartLeads',
      dateCol:'data lead',    semanaCol:'semana lead',      mesCol:'mês lead',
-     toISO:d=>d, totalLabel:'Total de Leads',totalColor:'rgba(108,99,255,0.85)'},
+     toISO:flexToISO, totalLabel:'Total de Leads',totalColor:'rgba(108,99,255,0.85)'},
     {chartKey:'cadastros',   canvasId:'chartCadastros',
      dateCol:'data cadastro',semanaCol:'semana cadastro',  mesCol:'mês cadastro',
      toISO:ddmmyyToISO, totalLabel:'Total de Cadastros',totalColor:'rgba(16,185,129,0.85)'},
