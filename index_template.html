@@ -60,7 +60,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .md-header{background:#1a1d2e;color:#fff;border-radius:8px;padding:12px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;}
 .md-header-title{font-size:14px;font-weight:700;}
 .md-header-sub{font-size:11px;color:#8892a4;}
-.md-section{margin-bottom:18px;}
+.md-section{margin-bottom:18px;max-width:460px;}
 .md-section-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1a1d2e;background:#e5e7eb;padding:6px 12px;border-radius:4px;margin-bottom:8px;}
 .md-table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;}
 .md-table thead th{font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;padding:8px 14px;text-align:right;background:#f9fafb;border-bottom:1px solid #e5e7eb;}
@@ -82,7 +82,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .pacing-wk-btn.active{background:#6c63ff;color:#fff;border-color:#6c63ff;}
 .pacing-wk-btn:hover:not(.active){background:#f3f4f6;}
 
-.pacing-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:20px 24px;max-width:680px;}
+.pacing-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:14px 18px;width:320px;flex-shrink:0;}
+.pacing-all-scroll{overflow-x:auto;display:flex;gap:14px;padding:14px 20px;align-items:flex-start;-webkit-overflow-scrolling:touch;}
+.pacing-card--current{box-shadow:0 0 0 2px #6c63ff,0 2px 8px rgba(108,99,255,.15);}
 .pacing-loading{padding:40px;text-align:center;color:#9ca3af;font-size:12px;}
 .pacing-title{font-size:14px;font-weight:700;color:#1a1d2e;padding:10px 14px;background:#1a1d2e;color:#fff;border-radius:7px;margin-bottom:16px;}
 
@@ -202,17 +204,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <!-- ═══ PACING AGOSTO TAB ═══ -->
 <div id="tab-pacing" style="display:none">
-  <div class="pacing-wrap">
-    <div class="pacing-week-sel">
-      <span class="ctrl-label">Semana</span>
-      <button class="pacing-wk-btn" id="wk-btn-03_08" onclick="selectWeek('03/08')">Sem 03/08</button>
-      <button class="pacing-wk-btn" id="wk-btn-10_08" onclick="selectWeek('10/08')">Sem 10/08</button>
-      <button class="pacing-wk-btn" id="wk-btn-17_08" onclick="selectWeek('17/08')">Sem 17/08</button>
-      <button class="pacing-wk-btn" id="wk-btn-24_08" onclick="selectWeek('24/08')">Sem 24/08</button>
-      <button class="pacing-wk-btn" id="wk-btn-31_08" onclick="selectWeek('31/08')">Sem 31/08</button>
-    </div>
-    <div id="pacing-panel"><div class="pacing-card"><div class="pacing-loading">Carregando dados…</div></div></div>
-  </div>
+  <div id="pacing-panel" class="pacing-all-scroll"><div class="pacing-card"><div class="pacing-loading">Carregando dados…</div></div></div>
 </div><!-- /tab-pacing -->
 
 <!-- ═══ META DIÁRIA TAB ═══ -->
@@ -440,161 +432,92 @@ function countInSemana(semanaCol, weekId, filterCol, filterVal){
 
 // ─── PACING: RENDER ───────────────────────────────────────────────────────────
 function renderPacingPanel(){
-  const wk=AUG_WEEKS.find(w=>w.id===_selectedWeek);
-  if(!wk) return;
   const adjPlans=computeAdjustedPlans();
-  const plan=adjPlans[_selectedWeek];
-  const basePlan=AUG_PLAN[_selectedWeek];
-  // Helper: mostra meta ajustada com indicador se difere da base
-  const metaCell=(v)=>String(v);
-  // Counts via colunas de semana (H, L, Q, R)
-  function cL(sdr){ return countInSemana('semana lead',wk.id,'SDR',sdr); }
-  function cC(sdr){ return countInSemana('semana cadastro',wk.id,'SDR',sdr); }
-  function cAE(vend){ return countInSemana('semana ativação entregue',wk.id,'vendedor ativação',vend); }
-  function cAV(vend){ return countInSemana('semana ativação vendido',wk.id,'vendedor ativação',vend); }
-  // Pedrinho ativações = by origem = Campanha Ads
-  function cPAE(){ return countInSemana('semana ativação entregue',wk.id,'origem do lead','Campanha Ads'); }
-  function cPAV(){ return countInSemana('semana ativação vendido',wk.id,'origem do lead','Campanha Ads'); }
+  const today=new Date().toISOString().slice(0,10);
 
-  const act={
-    jL:cL('Júlia Nascimento'), pL:cL('Pedro Ferreira'), vL:cL('Vitória Borges'),
-    jC:cC('Júlia Nascimento'), pC:cC('Pedro Ferreira'), vC:cC('Vitória Borges'),
-    jAE:cAE('Julia'),  jAV:cAV('Julia'),
-    vAE:cAE('Vitória'),vAV:cAV('Vitória'),
-    pAE:cPAE(),        pAV:cPAV(),
-    haAE:cAE('Hamanda'),  haAV:cAV('Hamanda'),
-    heAE:cAE('Helio'),    heAV:cAV('Helio'),
-    duAE:cAE('Maria Eduarda'), duAV:cAV('Maria Eduarda'),
-    fsAE:cAE('Field Sales'),   fsAV:cAV('Field Sales'),
-  };
+  if(!_rawRows.length){
+    document.getElementById('pacing-panel').innerHTML='<div class="pacing-card"><div class="pacing-loading">Carregando dados…</div></div>';
+    return;
+  }
 
-  const pct=(a,b)=>b>0?Math.round(a/b*100):null;
-  const ph=(v,noMeta)=>{
-    if(noMeta||v===null) return '<span style="color:#9ca3af">—</span>';
-    const cls=v>=85?'good':v>=70?'mid':'bad';
-    return `<span class="p-pct ${cls}">${v}%</span>`;
-  };
-  const dot=(col)=>`<span class="p-dot" style="background:${col}"></span>`;
+  const allHTML=AUG_WEEKS.map(wk=>{
+    const plan=adjPlans[wk.id];
+    const basePlan=AUG_PLAN[wk.id];
+    const isCurrentWk=today>=wk.from&&today<=wk.to;
+    const metaCell=(v)=>String(v);
+    const cL=(sdr)=>countInSemana('semana lead',wk.id,'SDR',sdr);
+    const cC=(sdr)=>countInSemana('semana cadastro',wk.id,'SDR',sdr);
+    const cAE=(vend)=>countInSemana('semana ativação entregue',wk.id,'vendedor ativação',vend);
+    const cAV=(vend)=>countInSemana('semana ativação vendido',wk.id,'vendedor ativação',vend);
+    const cPAE=()=>countInSemana('semana ativação entregue',wk.id,'origem do lead','Campanha Ads');
+    const cPAV=()=>countInSemana('semana ativação vendido',wk.id,'origem do lead','Campanha Ads');
+    const act={
+      jL:cL('Júlia Nascimento'), pL:cL('Pedro Ferreira'), vL:cL('Vitória Borges'),
+      jC:cC('Júlia Nascimento'), pC:cC('Pedro Ferreira'), vC:cC('Vitória Borges'),
+      jAE:cAE('Julia'),  jAV:cAV('Julia'),
+      vAE:cAE('Vitória'),vAV:cAV('Vitória'),
+      pAE:cPAE(),        pAV:cPAV(),
+      haAE:cAE('Hamanda'),  haAV:cAV('Hamanda'),
+      heAE:cAE('Helio'),    heAV:cAV('Helio'),
+      duAE:cAE('Maria Eduarda'), duAV:cAV('Maria Eduarda'),
+      fsAE:cAE('Field Sales'),   fsAV:cAV('Field Sales'),
+    };
+    const pct=(a,b)=>b>0?Math.round(a/b*100):null;
+    const ph=(v,noMeta)=>{
+      if(noMeta||v===null) return '<span style="color:#9ca3af">—</span>';
+      const cls=v>=85?'good':v>=70?'mid':'bad';
+      return `<span class="p-pct ${cls}">${v}%</span>`;
+    };
+    const dot=(col)=>`<span class="p-dot" style="background:${col}"></span>`;
+    const totLP=plan.jL+plan.pL+plan.vL, totLA=act.jL+act.pL+act.vL;
+    const totCP=plan.jC+plan.pC+plan.vC, totCA=act.jC+act.pC+act.vC;
+    const totMP=plan.jA+plan.vA+plan.haA+plan.heA+plan.duA;
+    const totAE=act.jAE+act.vAE+act.haAE+act.heAE+act.duAE+act.fsAE;
+    const totAV=act.jAV+act.vAV+act.haAV+act.heAV+act.duAV+act.fsAV;
 
-  // Totals
-  const totLP=plan.jL+plan.pL+plan.vL, totLA=act.jL+act.pL+act.vL;
-  const totCP=plan.jC+plan.pC+plan.vC, totCA=act.jC+act.pC+act.vC;
-  const farmMP=plan.haA+plan.heA+plan.duA;
-  const farmAE=act.haAE+act.heAE+act.duAE, farmAV=act.haAV+act.heAV+act.duAV;
-  const totMP=plan.jA+plan.vA+plan.haA+plan.heA+plan.duA;
-  const totAE=act.jAE+act.vAE+act.haAE+act.heAE+act.duAE+act.fsAE;
-  const totAV=act.jAV+act.vAV+act.haAV+act.heAV+act.duAV+act.fsAV;
-
-  const html=`
-<div class="pacing-card">
-  <div class="pacing-title">Semana ${wk.label}</div>
-
+    return `<div class="pacing-card${isCurrentWk?' pacing-card--current':''}">
+  <div class="pacing-title">${wk.label}${isCurrentWk?' <span style="font-size:9px;opacity:.75;font-weight:400">← atual</span>':''}</div>
   <div class="p-section">LEADS & CADASTROS</div>
   <table class="p-table">
     <tr><th class="left"></th><th>Meta</th><th>Real</th><th>%</th></tr>
     <tr><td colspan="4" class="p-subsection">LEADS</td></tr>
-    <tr>
-      <td class="left">${dot('#e0555e')}Pedrinho</td>
-      <td>${metaCell(plan.pL,basePlan.pL)}</td><td class="p-real">${act.pL}</td><td>${ph(pct(act.pL,plan.pL))}</td>
-    </tr>
-    <tr>
-      <td class="left">${dot('#6c63ff')}Júlia</td>
-      <td>${metaCell(plan.jL,basePlan.jL)}</td><td class="p-real">${act.jL}</td><td>${ph(pct(act.jL,plan.jL))}</td>
-    </tr>
-    <tr>
-      <td class="left">${dot('#10b981')}Vitória</td>
-      <td>${metaCell(plan.vL,basePlan.vL)}</td><td class="p-real">${act.vL}</td><td>${ph(pct(act.vL,plan.vL))}</td>
-    </tr>
-    <tr class="tot">
-      <td class="left">Total</td>
-      <td>${metaCell(totLP,basePlan.jL+basePlan.pL+basePlan.vL)}</td><td>${totLA}</td><td>${ph(pct(totLA,totLP))}</td>
-    </tr>
+    <tr><td class="left">${dot('#e0555e')}Pedrinho</td><td>${metaCell(plan.pL)}</td><td class="p-real">${act.pL}</td><td>${ph(pct(act.pL,plan.pL))}</td></tr>
+    <tr><td class="left">${dot('#6c63ff')}Júlia</td><td>${metaCell(plan.jL)}</td><td class="p-real">${act.jL}</td><td>${ph(pct(act.jL,plan.jL))}</td></tr>
+    <tr><td class="left">${dot('#10b981')}Vitória</td><td>${metaCell(plan.vL)}</td><td class="p-real">${act.vL}</td><td>${ph(pct(act.vL,plan.vL))}</td></tr>
+    <tr class="tot"><td class="left">Total</td><td>${totLP}</td><td>${totLA}</td><td>${ph(pct(totLA,totLP))}</td></tr>
     <tr><td colspan="4" class="p-subsection">CADASTROS</td></tr>
-    <tr>
-      <td class="left">${dot('#e0555e')}Pedrinho</td>
-      <td>${metaCell(plan.pC,basePlan.pC)}</td><td class="p-real">${act.pC}</td><td>${ph(pct(act.pC,plan.pC))}</td>
-    </tr>
-    <tr>
-      <td class="left">${dot('#6c63ff')}Júlia</td>
-      <td>${metaCell(plan.jC,basePlan.jC)}</td><td class="p-real">${act.jC}</td><td>${ph(pct(act.jC,plan.jC))}</td>
-    </tr>
-    <tr>
-      <td class="left">${dot('#10b981')}Vitória</td>
-      <td>${metaCell(plan.vC,basePlan.vC)}</td><td class="p-real">${act.vC}</td><td>${ph(pct(act.vC,plan.vC))}</td>
-    </tr>
-    <tr class="tot">
-      <td class="left">Total</td>
-      <td>${metaCell(totCP,basePlan.jC+basePlan.pC+basePlan.vC)}</td><td>${totCA}</td><td>${ph(pct(totCA,totCP))}</td>
-    </tr>
+    <tr><td class="left">${dot('#e0555e')}Pedrinho</td><td>${metaCell(plan.pC)}</td><td class="p-real">${act.pC}</td><td>${ph(pct(act.pC,plan.pC))}</td></tr>
+    <tr><td class="left">${dot('#6c63ff')}Júlia</td><td>${metaCell(plan.jC)}</td><td class="p-real">${act.jC}</td><td>${ph(pct(act.jC,plan.jC))}</td></tr>
+    <tr><td class="left">${dot('#10b981')}Vitória</td><td>${metaCell(plan.vC)}</td><td class="p-real">${act.vC}</td><td>${ph(pct(act.vC,plan.vC))}</td></tr>
+    <tr class="tot"><td class="left">Total</td><td>${totCP}</td><td>${totCA}</td><td>${ph(pct(totCA,totCP))}</td></tr>
   </table>
-
   <div class="p-sep"></div>
-
   <div class="p-section">ATIVAÇÕES</div>
   <table class="p-table">
-    <tr><th class="left"></th><th>Meta</th><th>Entregue</th><th>%</th><th style="color:#6c63ff">Vendido</th></tr>
-    <tr>
-      <td class="left">${dot('#6c63ff')}Júlia</td>
-      <td>${metaCell(plan.jA,basePlan.jA)}</td><td class="p-real">${act.jAE}</td><td>${ph(pct(act.jAE,plan.jA))}</td><td class="p-vend">${act.jAV}</td>
-    </tr>
-    <tr>
-      <td class="left">${dot('#10b981')}Vitória</td>
-      <td>${metaCell(plan.vA,basePlan.vA)}</td><td class="p-real">${act.vAE}</td><td>${ph(pct(act.vAE,plan.vA))}</td><td class="p-vend">${act.vAV}</td>
-    </tr>
-    <tr>
-      <td class="left">Hamanda</td>
-      <td>${metaCell(plan.haA,basePlan.haA)}</td><td class="p-real">${act.haAE}</td><td>${ph(pct(act.haAE,plan.haA),!plan.haA)}</td><td class="p-vend">${act.haAV}</td>
-    </tr>
-    <tr>
-      <td class="left">Hélio</td>
-      <td>${metaCell(plan.heA,basePlan.heA)}</td><td class="p-real">${act.heAE}</td><td>${ph(pct(act.heAE,plan.heA),!plan.heA)}</td><td class="p-vend">${act.heAV}</td>
-    </tr>
-    <tr>
-      <td class="left">Maria Eduarda</td>
-      <td>${metaCell(plan.duA,basePlan.duA)}</td><td class="p-real">${act.duAE}</td><td>${ph(pct(act.duAE,plan.duA),!plan.duA)}</td><td class="p-vend">${act.duAV}</td>
-    </tr>
-    <tr class="fs">
-      <td class="left">Field Sales</td>
-      <td>—</td><td class="p-real">${act.fsAE}</td><td>—</td><td class="p-vend">${act.fsAV}</td>
-    </tr>
-    <tr class="tot">
-      <td class="left">Total Canal</td>
-      <td>${metaCell(totMP,basePlan.jA+basePlan.vA+basePlan.haA+basePlan.heA+basePlan.duA)}</td><td>${totAE}</td><td>${ph(pct(totAE,totMP))}</td><td class="p-vend">${totAV}</td>
-    </tr>
+    <tr><th class="left"></th><th>Meta</th><th>Entg</th><th>%</th><th style="color:#6c63ff">Vend</th></tr>
+    <tr><td class="left">${dot('#6c63ff')}Júlia</td><td>${metaCell(plan.jA)}</td><td class="p-real">${act.jAE}</td><td>${ph(pct(act.jAE,plan.jA))}</td><td class="p-vend">${act.jAV}</td></tr>
+    <tr><td class="left">${dot('#10b981')}Vitória</td><td>${metaCell(plan.vA)}</td><td class="p-real">${act.vAE}</td><td>${ph(pct(act.vAE,plan.vA))}</td><td class="p-vend">${act.vAV}</td></tr>
+    <tr><td class="left">Hamanda</td><td>${metaCell(plan.haA)}</td><td class="p-real">${act.haAE}</td><td>${ph(pct(act.haAE,plan.haA),!plan.haA)}</td><td class="p-vend">${act.haAV}</td></tr>
+    <tr><td class="left">Hélio</td><td>${metaCell(plan.heA)}</td><td class="p-real">${act.heAE}</td><td>${ph(pct(act.heAE,plan.heA),!plan.heA)}</td><td class="p-vend">${act.heAV}</td></tr>
+    <tr><td class="left">M.Eduarda</td><td>${metaCell(plan.duA)}</td><td class="p-real">${act.duAE}</td><td>${ph(pct(act.duAE,plan.duA),!plan.duA)}</td><td class="p-vend">${act.duAV}</td></tr>
+    <tr class="fs"><td class="left">Field Sales</td><td>—</td><td class="p-real">${act.fsAE}</td><td>—</td><td class="p-vend">${act.fsAV}</td></tr>
+    <tr class="tot"><td class="left">Total</td><td>${totMP}</td><td>${totAE}</td><td>${ph(pct(totAE,totMP))}</td><td class="p-vend">${totAV}</td></tr>
   </table>
-
   <div class="p-sep"></div>
-
-  <div class="p-section">TAXAS DE CONVERSÃO <span style="font-size:9px;font-weight:400;text-transform:none;letter-spacing:0">(Entregue)</span></div>
+  <div class="p-section">CONVERSÕES</div>
   <table class="p-table">
-    <tr>
-      <th class="left"></th>
-      <th style="color:#6c63ff">Júlia</th>
-      <th style="color:#10b981">Vitória</th>
-      <th style="color:#e0555e">Pedrinho</th>
-    </tr>
-    <tr>
-      <td class="left">Lead × Cad</td>
-      <td>${ph(pct(act.jC,act.jL))}</td>
-      <td>${ph(pct(act.vC,act.vL))}</td>
-      <td>${ph(pct(act.pC,act.pL))}</td>
-    </tr>
-    <tr>
-      <td class="left">Cad × Atv</td>
-      <td>${ph(pct(act.jAE,act.jC))}</td>
-      <td>${ph(pct(act.vAE,act.vC))}</td>
-      <td>${ph(pct(act.pAE,act.pC))}</td>
-    </tr>
-    <tr>
-      <td class="left">Lead × Atv</td>
-      <td>${ph(pct(act.jAE,act.jL))}</td>
-      <td>${ph(pct(act.vAE,act.vL))}</td>
-      <td>${ph(pct(act.pAE,act.pL))}</td>
-    </tr>
+    <tr><th class="left"></th><th style="color:#6c63ff">Júlia</th><th style="color:#10b981">Vitória</th><th style="color:#e0555e">Pedro</th></tr>
+    <tr><td class="left">L→C</td><td>${ph(pct(act.jC,act.jL))}</td><td>${ph(pct(act.vC,act.vL))}</td><td>${ph(pct(act.pC,act.pL))}</td></tr>
+    <tr><td class="left">C→A</td><td>${ph(pct(act.jAE,act.jC))}</td><td>${ph(pct(act.vAE,act.vC))}</td><td>${ph(pct(act.pAE,act.pC))}</td></tr>
+    <tr><td class="left">L→A</td><td>${ph(pct(act.jAE,act.jL))}</td><td>${ph(pct(act.vAE,act.vL))}</td><td>${ph(pct(act.pAE,act.pL))}</td></tr>
   </table>
 </div>`;
+  }).join('');
 
-  document.getElementById('pacing-panel').innerHTML=html;
+  document.getElementById('pacing-panel').innerHTML=allHTML;
+  // Auto-scroll para semana atual
+  const cur=document.querySelector('#pacing-panel .pacing-card--current');
+  if(cur) setTimeout(()=>cur.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}),100);
 }
 
 // ─── PACING: ADJUSTED PLANS ──────────────────────────────────────────────────
@@ -650,9 +573,6 @@ function computeAdjustedPlans(){
 
 function selectWeek(id){
   _selectedWeek=id;
-  document.querySelectorAll('.pacing-wk-btn').forEach(b=>b.classList.remove('active'));
-  const btnId='wk-btn-'+id.replace('/','_');
-  const btn=document.getElementById(btnId); if(btn) btn.classList.add('active');
   if(_rawRows.length) renderPacingPanel();
 }
 
