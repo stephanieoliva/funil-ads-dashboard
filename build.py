@@ -20,7 +20,7 @@ KEEP = [
     'data cadastro', 'semana cadastro', 'mês cadastro',
     'data ativação vendido', 'semana ativação vendido', 'mês ativação vendido',
     'data ativação entregue', 'semana ativação entregue', 'mês ativação entregue',
-    'vendedor ativação', 'SDR',
+    'vendedor ativação', 'SDR', 'prazo', 'type',
 ]
 
 def main():

@@ -125,6 +125,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <button class="tab-btn" data-tab="pacing" onclick="switchTab('pacing')">📅 Pacing Agosto</button>
   <button class="tab-btn" data-tab="diaria" onclick="switchTab('diaria')">📋 Meta Semana Atual</button>
   <button class="tab-btn" data-tab="mtd" onclick="switchTab('mtd')">📊 MTD Agosto</button>
+  <button class="tab-btn" data-tab="analises" onclick="switchTab('analises')">🔍 Análises</button>
 </div>
 
 <!-- ═══ GRÁFICOS TAB ═══ -->
@@ -132,9 +133,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div class="controls">
     <div class="ctrl-group">
       <span class="ctrl-label">Granularidade</span>
-      <button class="slice-btn" id="btn-daily"   onclick="setGran('daily')">Diário</button>
-      <button class="slice-btn" id="btn-weekly"  onclick="setGran('weekly')">Semanal</button>
-      <button class="slice-btn active" id="btn-monthly" onclick="setGran('monthly')">Mensal</button>
+      <button class="slice-btn gran-btn" data-gran="daily"   onclick="setGran('daily')">Diário</button>
+      <button class="slice-btn gran-btn" data-gran="weekly"  onclick="setGran('weekly')">Semanal</button>
+      <button class="slice-btn gran-btn active" data-gran="monthly" onclick="setGran('monthly')">Mensal</button>
     </div>
     <div class="ctrl-group">
       <span class="ctrl-label">Visualização</span>
@@ -158,9 +159,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     </div>
     <div class="ctrl-group">
       <span class="ctrl-label">De</span>
-      <input type="date" class="date-inp" id="dateFrom" onchange="setDateFrom(this.value)">
+      <input type="date" class="date-inp inp-date-from" id="dateFrom" onchange="setDateFrom(this.value)">
       <span class="ctrl-label">Até</span>
-      <input type="date" class="date-inp" id="dateTo" onchange="setDateTo(this.value)">
+      <input type="date" class="date-inp inp-date-to" id="dateTo" onchange="setDateTo(this.value)">
     </div>
   </div>
 
@@ -228,6 +229,60 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div id="mtd-panel"><div class="pacing-loading">Carregando dados…</div></div>
   </div>
 </div><!-- /tab-mtd -->
+
+<!-- ═══ ANÁLISES TAB ═══ -->
+<div id="tab-analises" style="display:none">
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Granularidade</span>
+      <button class="slice-btn gran-btn" data-gran="daily"   onclick="setGran('daily')">Diário</button>
+      <button class="slice-btn gran-btn" data-gran="weekly"  onclick="setGran('weekly')">Semanal</button>
+      <button class="slice-btn gran-btn active" data-gran="monthly" onclick="setGran('monthly')">Mensal</button>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Origem</span>
+      <div class="ms-container">
+        <button class="ms-btn" id="anOrigemBtn" onclick="togglePanel('anOrigem')">Todas ▾</button>
+        <div class="ms-panel" id="anOrigemPanel"></div>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">SDR</span>
+      <div class="ms-container">
+        <button class="ms-btn" id="anSDRBtn" onclick="togglePanel('anSDR')">Todos ▾</button>
+        <div class="ms-panel" id="anSDRPanel"></div>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">De</span>
+      <input type="date" class="date-inp inp-date-from" onchange="setDateFrom(this.value)">
+      <span class="ctrl-label">Até</span>
+      <input type="date" class="date-inp inp-date-to" onchange="setDateTo(this.value)">
+    </div>
+  </div>
+  <div class="main">
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-hdr"><h2>Cadastros: Com Prazo vs Sem Prazo</h2></div>
+        <div class="chart-wrap"><canvas id="chartPrazo"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-hdr"><h2>% Com Prazo</h2></div>
+        <div class="chart-wrap"><canvas id="chartPrazoPct"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-card-hdr"><h2>Cadastros por Tipo de Negócio (%)</h2></div>
+        <div class="chart-wrap"><canvas id="chartTipoStack"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-hdr"><h2>Supermarket vs Outros (%)</h2></div>
+        <div class="chart-wrap"><canvas id="chartTipoSup"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div><!-- /tab-analises -->
 
 <div class="footer-note" style="font-size:10px;color:#9ca3af;text-align:center;padding:14px 20px 20px;">Dashboard estático publicado a partir do Google Sheets "Funil ADS [temporário]" — atualiza automaticamente 1x por dia.</div>
 
@@ -298,8 +353,9 @@ const _origens    = new Set();
 const _vendedores = new Set();
 let _dateFrom = '2025-09-01';
 let _dateTo   = new Date().toISOString().slice(0,10);
-const _charts = { leads:null, cadastros:null, ativVendido:null, ativEntregue:null, convLeadCad:null, convCadAtiv:null };
+const _charts = { leads:null, cadastros:null, ativVendido:null, ativEntregue:null, convLeadCad:null, convCadAtiv:null, prazo:null, prazoPct:null, tipoStack:null, tipoSup:null };
 let _activeTab = 'graficos';
+const _anSDR = new Set();
 
 // ─── CSV PARSER ───────────────────────────────────────────────────────────────
 function splitCSVLine(line){
@@ -397,10 +453,12 @@ function loadData(){
     _rawRows=parseCSV(csv);
     populateOrigemDropdown();
     populateVendedorDropdown();
+    populateAnSDRDropdown();
     render();
     renderPacingPanel();
     renderMetaDiaria();
     renderMTD();
+    renderAnalises();
   }catch(e){
     console.error('loadData:',e);
     if(ll) ll.style.display='none';
@@ -817,9 +875,11 @@ function switchTab(tab){
   document.getElementById('tab-pacing').style.display=tab==='pacing'?'':'none';
   document.getElementById('tab-diaria').style.display=tab==='diaria'?'':'none';
   document.getElementById('tab-mtd').style.display=tab==='mtd'?'':'none';
+  document.getElementById('tab-analises').style.display=tab==='analises'?'':'none';
   if(tab==='pacing'&&_rawRows.length) renderPacingPanel();
   if(tab==='diaria'&&_rawRows.length) renderMetaDiaria();
   if(tab==='mtd'&&_rawRows.length) renderMTD();
+  if(tab==='analises'&&_rawRows.length) renderAnalises();
 }
 
 // ─── CHART RENDERING ──────────────────────────────────────────────────────────
@@ -936,6 +996,7 @@ function render(){
   CFGS.forEach(cfg=>buildAndRenderChart(cfg));
   buildAndRenderConversionChart();
   const ll=document.getElementById('loadingLeads'); if(ll) ll.style.display='none';
+  if(_activeTab==='analises') renderAnalises();
 }
 
 // ─── CHART DRAW ───────────────────────────────────────────────────────────────
@@ -952,7 +1013,7 @@ const _totalLabelPlugin={id:'totalLabels',afterDatasetsDraw(chart){
 function drawGenericBarChart(key,canvasId,labels,datasets,stacked){
   const canvas=document.getElementById(canvasId);
   if(_charts[key]){_charts[key].data.labels=labels;_charts[key].data.datasets=datasets;_charts[key].options.scales.x.stacked=stacked;_charts[key].options.scales.y.stacked=stacked;_charts[key].update();return;}
-  _charts[key]=new Chart(canvas,{type:'bar',data:{labels,datasets},plugins:[_totalLabelPlugin],options:{
+  _charts[key]=new Chart(canvas,{type:'bar',data:{labels,datasets},plugins:[_totalLabelPlugin,_barInsidePlugin],options:{
     responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:10,padding:10}},tooltip:{callbacks:{footer(items){const sum=items.reduce((s,i)=>s+i.parsed.y,0);return items.length>1?`Total: ${sum}`:'';}}}},
     scales:{x:{stacked,ticks:{font:{size:9},maxRotation:45},grid:{display:false}},y:{stacked,beginAtZero:true,ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}},
@@ -962,6 +1023,46 @@ function drawGenericBarChart(key,canvasId,labels,datasets,stacked){
 const _pctLabelPlugin={id:'pctLabels',afterDatasetsDraw(chart){
   const {ctx}=chart;
   chart.data.datasets.forEach((ds,di)=>{const meta=chart.getDatasetMeta(di);meta.data.forEach((bar,i)=>{const val=ds.data[i];if(val==null) return;ctx.save();ctx.font='bold 12px system-ui,sans-serif';ctx.fillStyle='#111827';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(val+'%',bar.x,bar.y-4);ctx.restore();});});
+}};
+// Rótulo DENTRO da barra — valor absoluto
+const _barInsidePlugin={id:'barInside',afterDatasetsDraw(chart){
+  const {ctx}=chart;
+  chart.data.datasets.forEach((ds,di)=>{
+    const meta=chart.getDatasetMeta(di); if(meta.hidden) return;
+    meta.data.forEach((bar,i)=>{
+      const v=ds.data[i]; if(v==null||v===0) return;
+      const h=Math.abs(bar.base-bar.y); if(h<10) return;
+      ctx.save();ctx.font='bold 8px system-ui,sans-serif';ctx.fillStyle='rgba(255,255,255,0.92)';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v,bar.x,bar.y+h/2);ctx.restore();
+    });
+  });
+}};
+// Rótulo DENTRO da barra — valor percentual
+const _barInsidePctPlugin={id:'barInsidePct',afterDatasetsDraw(chart){
+  const {ctx}=chart;
+  chart.data.datasets.forEach((ds,di)=>{
+    const meta=chart.getDatasetMeta(di); if(meta.hidden) return;
+    meta.data.forEach((bar,i)=>{
+      const v=ds.data[i]; if(v==null||v===0) return;
+      const h=Math.abs(bar.base-bar.y); if(h<10) return;
+      ctx.save();ctx.font='bold 8px system-ui,sans-serif';ctx.fillStyle='rgba(255,255,255,0.92)';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v+'%',bar.x,bar.y+h/2);ctx.restore();
+    });
+  });
+}};
+// Rótulo DENTRO da barra — apenas top 3 datasets (para tipo de negócio)
+const _tipoTop3Plugin={id:'tipoTop3',afterDatasetsDraw(chart){
+  const {ctx}=chart;
+  chart.data.datasets.forEach((ds,di)=>{
+    if(di>=3) return;
+    const meta=chart.getDatasetMeta(di); if(meta.hidden) return;
+    meta.data.forEach((bar,i)=>{
+      const v=ds.data[i]; if(v==null||v===0) return;
+      const h=Math.abs(bar.base-bar.y); if(h<10) return;
+      ctx.save();ctx.font='bold 8px system-ui,sans-serif';ctx.fillStyle='rgba(255,255,255,0.92)';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(v+'%',bar.x,bar.y+h/2);ctx.restore();
+    });
+  });
 }};
 function drawConversionBarChart(key,canvasId,labels,datasets){
   const canvas=document.getElementById(canvasId);
@@ -977,7 +1078,7 @@ function drawConversionBarChart(key,canvasId,labels,datasets){
 // ─── DROPDOWNS ────────────────────────────────────────────────────────────────
 function setGran(g){
   _gran=g;
-  ['daily','weekly','monthly'].forEach(x=>{const b=document.getElementById(`btn-${x}`);if(b)b.classList.toggle('active',x===g);});
+  document.querySelectorAll('.gran-btn').forEach(b=>b.classList.toggle('active',b.dataset.gran===g));
   if(_rawRows.length) render();
 }
 function setView(v){
@@ -1016,13 +1117,12 @@ function syncPanelCheckboxes(panelId,selected){
 function toggleOrigem(val){
   if(val==='__all__') _origens.clear();
   else{if(_origens.has(val))_origens.delete(val);else _origens.add(val);}
-  syncPanelCheckboxes('origemPanel',_origens); updateOrigemBtn(); if(_rawRows.length) render();
+  ['origemPanel','anOrigemPanel'].forEach(id=>syncPanelCheckboxes(id,_origens));
+  updateOrigemBtn(); if(_rawRows.length) render();
 }
 function updateOrigemBtn(){
-  const btn=document.getElementById('origemBtn'); if(!btn) return;
-  if(_origens.size===0) btn.textContent='Todas ▾';
-  else if(_origens.size===1) btn.textContent=[..._origens][0]+' ▾';
-  else btn.textContent=`${_origens.size} origens ▾`;
+  const lbl=_origens.size===0?'Todas ▾':_origens.size===1?[..._origens][0]+' ▾':_origens.size+' origens ▾';
+  ['origemBtn','anOrigemBtn'].forEach(id=>{const b=document.getElementById(id);if(b)b.textContent=lbl;});
 }
 function toggleVendedor(val){
   if(val==='__all__') _vendedores.clear();
@@ -1037,7 +1137,10 @@ function updateVendedorBtn(){
 }
 function populateOrigemDropdown(){
   const origens=new Set(); _rawRows.forEach(r=>{const o=r['origem do lead'];if(o)origens.add(o);});
-  buildMultiPanel('origemPanel',[...origens].sort(),toggleOrigem,'Todas'); updateOrigemBtn();
+  const sorted=[...origens].sort();
+  buildMultiPanel('origemPanel',sorted,toggleOrigem,'Todas');
+  buildMultiPanel('anOrigemPanel',sorted,toggleOrigem,'Todas');
+  updateOrigemBtn();
 }
 function populateVendedorDropdown(){
   const vendedores=new Set(); _rawRows.forEach(r=>{const v=r['vendedor ativação'];if(v)vendedores.add(v);});
@@ -1045,15 +1148,187 @@ function populateVendedorDropdown(){
   sorted.forEach((v,i)=>{_vendedorColorMap[v]=VENDEDOR_COLOR_POOL[i%VENDEDOR_COLOR_POOL.length];});
   buildMultiPanel('vendedorPanel',sorted,toggleVendedor,'Todos'); updateVendedorBtn();
 }
-function setDateFrom(v){_dateFrom=v;if(_rawRows.length) render();}
-function setDateTo(v){_dateTo=v;if(_rawRows.length) render();}
+function setDateFrom(v){
+  _dateFrom=v;
+  document.querySelectorAll('.inp-date-from').forEach(el=>{if(el.value!==v) el.value=v;});
+  if(_rawRows.length) render();
+}
+function setDateTo(v){
+  _dateTo=v;
+  document.querySelectorAll('.inp-date-to').forEach(el=>{if(el.value!==v) el.value=v;});
+  if(_rawRows.length) render();
+}
+
+// ─── ANÁLISES ─────────────────────────────────────────────────────────────────
+function populateAnSDRDropdown(){
+  const sdrs=new Set(); _rawRows.forEach(r=>{const s=r['SDR'];if(s) sdrs.add(s);});
+  buildMultiPanel('anSDRPanel',[...sdrs].sort(),toggleAnSDR,'Todos'); updateAnSDRBtn();
+}
+function toggleAnSDR(val){
+  if(val==='__all__') _anSDR.clear();
+  else{if(_anSDR.has(val)) _anSDR.delete(val); else _anSDR.add(val);}
+  syncPanelCheckboxes('anSDRPanel',_anSDR); updateAnSDRBtn();
+  if(_rawRows.length) renderAnalises();
+}
+function updateAnSDRBtn(){
+  const btn=document.getElementById('anSDRBtn'); if(!btn) return;
+  if(_anSDR.size===0) btn.textContent='Todos ▾';
+  else if(_anSDR.size===1) btn.textContent=[..._anSDR][0]+' ▾';
+  else btn.textContent=_anSDR.size+' SDRs ▾';
+}
+function renderAnalises(){
+  if(!_rawRows.length) return;
+  const comColor='rgba(16,185,129,0.85)';
+  const semColor='rgba(224,85,94,0.85)';
+
+  // Filtra por data cadastro + origens + SDR
+  let filtered=_rawRows.filter(r=>{
+    let iso;
+    if(_gran==='weekly'){
+      const s=r['semana cadastro']; if(!s) return false;
+      iso=anyDateToISO(s);
+    } else {
+      const d=r['data cadastro']; if(!d||d==='—'||d==='-') return false;
+      iso=ddmmyyToISO(d); if(!iso) iso=anyDateToISO(d);
+    }
+    return iso&&iso>=_dateFrom&&iso<=_dateTo;
+  });
+  if(_origens.size>0) filtered=filtered.filter(r=>_origens.has(r['origem do lead']||'Outros'));
+  if(_anSDR.size>0)   filtered=filtered.filter(r=>_anSDR.has(r['SDR']||'Sem SDR'));
+
+  // Agrupa por período
+  const periodMap={};
+  filtered.forEach(r=>{
+    let period;
+    if(_gran==='daily')       period=ddmmyyToISO(r['data cadastro'])||anyDateToISO(r['data cadastro']);
+    else if(_gran==='weekly') period=r['semana cadastro'];
+    else                      period=r['mês cadastro'];
+    if(!period) return;
+    const temPrazo=r['prazo']&&r['prazo']!=='0';
+    if(!periodMap[period]) periodMap[period]={com:0,sem:0};
+    if(temPrazo) periodMap[period].com++; else periodMap[period].sem++;
+  });
+
+  const periods=Object.keys(periodMap).sort((a,b)=>sortKey(a,_gran).localeCompare(sortKey(b,_gran)));
+  const labels=periods.map(p=>periodLabel(p,_gran));
+  const dataCom=periods.map(p=>periodMap[p].com);
+  const dataSem=periods.map(p=>periodMap[p].sem);
+  const dataPctCom=periods.map(p=>{const t=periodMap[p].com+periodMap[p].sem; return t?Math.round(periodMap[p].com/t*100):null;});
+  const dataPctSem=periods.map(p=>{const t=periodMap[p].com+periodMap[p].sem; return t?100-Math.round(periodMap[p].com/t*100):null;});
+
+  // Gráfico esquerdo: barras empilhadas absolutas
+  const key1='prazo', id1='chartPrazo';
+  const ds1=[
+    {label:'Com Prazo',data:dataCom,backgroundColor:comColor,borderRadius:4,borderSkipped:false},
+    {label:'Sem Prazo',data:dataSem,backgroundColor:semColor,borderRadius:4,borderSkipped:false},
+  ];
+  const canvas1=document.getElementById(id1);
+  if(_charts[key1]){_charts[key1].data.labels=labels;_charts[key1].data.datasets=ds1;_charts[key1].update();}
+  else{_charts[key1]=new Chart(canvas1,{type:'bar',data:{labels,datasets:ds1},plugins:[_totalLabelPlugin,_barInsidePlugin],options:{
+    responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:10,padding:10}},tooltip:{callbacks:{footer(items){const sum=items.reduce((s,i)=>s+i.parsed.y,0);return items.length>1?'Total: '+sum:''}}}},
+    scales:{x:{stacked:true,ticks:{font:{size:9},maxRotation:45},grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}},
+    layout:{padding:{top:14}},
+  }});}
+
+  // Gráfico direito: barras empilhadas 100% (% com prazo + % sem prazo)
+  const key2='prazoPct', id2='chartPrazoPct';
+  const ds2=[
+    {label:'Com Prazo %',data:dataPctCom,backgroundColor:comColor,borderRadius:4,borderSkipped:false},
+    {label:'Sem Prazo %',data:dataPctSem,backgroundColor:semColor,borderRadius:4,borderSkipped:false},
+  ];
+  const canvas2=document.getElementById(id2);
+  if(_charts[key2]){_charts[key2].data.labels=labels;_charts[key2].data.datasets=ds2;_charts[key2].update();}
+  else{_charts[key2]=new Chart(canvas2,{type:'bar',data:{labels,datasets:ds2},plugins:[_barInsidePctPlugin],options:{
+    responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:10,padding:10}},
+      tooltip:{callbacks:{label(item){return item.dataset.label+': '+(item.parsed.y??'—')+'%';}}}},
+    scales:{
+      x:{stacked:true,ticks:{font:{size:9},maxRotation:45},grid:{display:false}},
+      y:{stacked:true,beginAtZero:true,max:100,ticks:{font:{size:9},callback:v=>v+'%'},grid:{color:'rgba(0,0,0,.05)'}},
+    },
+    layout:{padding:{top:14}},
+  }});}
+
+  // ── Gráficos de tipo de negócio ──
+  const TIPO_COLORS=['rgba(108,99,255,0.85)','rgba(16,185,129,0.85)','rgba(245,158,11,0.85)',
+    'rgba(239,68,68,0.85)','rgba(14,165,233,0.85)','rgba(168,85,247,0.85)',
+    'rgba(234,88,12,0.85)','rgba(20,184,166,0.85)','rgba(236,72,153,0.85)'];
+
+  const tipoMap={}, tiposSet=new Set();
+  filtered.forEach(r=>{
+    let period;
+    if(_gran==='daily')       period=ddmmyyToISO(r['data cadastro'])||anyDateToISO(r['data cadastro']);
+    else if(_gran==='weekly') period=r['semana cadastro'];
+    else                      period=r['mês cadastro'];
+    if(!period) return;
+    const tipo=r['type']||'Sem tipo';
+    tiposSet.add(tipo);
+    if(!tipoMap[period]) tipoMap[period]={};
+    tipoMap[period][tipo]=(tipoMap[period][tipo]||0)+1;
+  });
+
+  const tiPeriods=Object.keys(tipoMap).sort((a,b)=>sortKey(a,_gran).localeCompare(sortKey(b,_gran)));
+  const tiLabels=tiPeriods.map(p=>periodLabel(p,_gran));
+
+  // Ordena tipos por % total decrescente (maior → menor)
+  const tipoTotPct={};
+  [...tiposSet].forEach(tipo=>{
+    tipoTotPct[tipo]=tiPeriods.reduce((s,p)=>{
+      const t=Object.values(tipoMap[p]).reduce((a,v)=>a+v,0);
+      return s+(t?(tipoMap[p][tipo]||0)/t*100:0);
+    },0);
+  });
+  const allTipos=[...tiposSet].sort((a,b)=>tipoTotPct[b]-tipoTotPct[a]);
+
+  const pctOpts={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:10,padding:10}},
+      tooltip:{callbacks:{label(item){return item.dataset.label+': '+(item.parsed.y??'—')+'%';}}}},
+    scales:{x:{stacked:true,ticks:{font:{size:9},maxRotation:45},grid:{display:false}},
+      y:{stacked:true,beginAtZero:true,max:100,ticks:{font:{size:9},callback:v=>v+'%'},grid:{color:'rgba(0,0,0,.05)'}}},
+    layout:{padding:{top:6}}};
+
+  // Esquerdo: 100% stacked por tipo (ordenado %, rótulos só nos 3 primeiros)
+  const tiStackDS=allTipos.map((tipo,i)=>({
+    label:tipo,
+    data:tiPeriods.map(p=>{
+      const t=Object.values(tipoMap[p]).reduce((s,v)=>s+v,0);
+      return t?Math.round((tipoMap[p][tipo]||0)/t*100):null;
+    }),
+    backgroundColor:TIPO_COLORS[i%TIPO_COLORS.length],
+    borderRadius:4,borderSkipped:false,
+  }));
+
+  const c3=document.getElementById('chartTipoStack');
+  if(_charts.tipoStack){_charts.tipoStack.data.labels=tiLabels;_charts.tipoStack.data.datasets=tiStackDS;_charts.tipoStack.update();}
+  else{_charts.tipoStack=new Chart(c3,{type:'bar',data:{labels:tiLabels,datasets:tiStackDS},plugins:[_tipoTop3Plugin],options:pctOpts});}
+
+  // Direito: Supermarket vs Outros
+  const isSup=(t)=>t.toLowerCase()==='supermarket';
+  const supDS=[
+    {label:'Supermarket',data:tiPeriods.map(p=>{
+      const t=Object.values(tipoMap[p]).reduce((s,v)=>s+v,0);
+      const sup=Object.keys(tipoMap[p]).filter(isSup).reduce((s,k)=>s+(tipoMap[p][k]||0),0);
+      return t?Math.round(sup/t*100):null;
+    }),backgroundColor:'rgba(108,99,255,0.85)',borderRadius:4,borderSkipped:false},
+    {label:'Outros',data:tiPeriods.map(p=>{
+      const t=Object.values(tipoMap[p]).reduce((s,v)=>s+v,0);
+      const sup=Object.keys(tipoMap[p]).filter(isSup).reduce((s,k)=>s+(tipoMap[p][k]||0),0);
+      return t?100-Math.round(sup/t*100):null;
+    }),backgroundColor:'rgba(156,163,175,0.85)',borderRadius:4,borderSkipped:false},
+  ];
+
+  const c4=document.getElementById('chartTipoSup');
+  if(_charts.tipoSup){_charts.tipoSup.data.labels=tiLabels;_charts.tipoSup.data.datasets=supDS;_charts.tipoSup.update();}
+  else{_charts.tipoSup=new Chart(c4,{type:'bar',data:{labels:tiLabels,datasets:supDS},plugins:[_barInsidePctPlugin],options:pctOpts});}
+}
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 (()=>{
   const today=new Date().toISOString().slice(0,10);
   const from=today.slice(0,4)+'-07-01'; // 01/07 do ano atual
-  const dfEl=document.getElementById('dateFrom'); if(dfEl){dfEl.value=from;}
-  const dtEl=document.getElementById('dateTo');   if(dtEl){dtEl.value=today;}
+  document.querySelectorAll('.inp-date-from').forEach(el=>el.value=from);
+  document.querySelectorAll('.inp-date-to').forEach(el=>el.value=today);
   _dateFrom=from; _dateTo=today;
   // Detect and select current August week
   _selectedWeek=detectCurrentWeek();
