@@ -306,26 +306,28 @@ const MONTHLY_TARGETS = {
   haA:28,  heA:29,  duA:21
 };
 
-// AUG_PLAN: distribuição proporcional dos dias úteis por semana (5+5+5+5+1=21)
-const AUG_PLAN = {};
+// AUG_PLAN: plano base proporcional por dias úteis (5+5+5+5+1=21)
+// W4 e W5 são zerados aqui e recalculados dinamicamente em computeAdjustedPlans() após carregar dados
 const _AUG_WDAYS = {'03/08':5,'10/08':5,'17/08':5,'24/08':5,'31/08':1};
 const _WDAYS_TOTAL = 21;
-(function buildAugPlan(){
-  const wks = AUG_WEEKS.map(w=>w.id);
+const AUG_PLAN = (function(){
   const plan = {};
-  wks.forEach(w=>{plan[w]={};});
-  Object.keys(MONTHLY_TARGETS).forEach(mKey=>{
+  AUG_WEEKS.forEach(w => { plan[w.id] = {}; });
+  Object.keys(MONTHLY_TARGETS).forEach(mKey => {
     const t = MONTHLY_TARGETS[mKey];
     let alloc = 0;
-    wks.slice(0,-1).forEach(w=>{
-      const s = Math.round(t * _AUG_WDAYS[w] / _WDAYS_TOTAL);
-      plan[w][mKey] = s;
+    AUG_WEEKS.slice(0,-1).forEach(w => {
+      const s = Math.round(t * _AUG_WDAYS[w.id] / _WDAYS_TOTAL);
+      plan[w.id][mKey] = s;
       alloc += s;
     });
-    plan[wks[wks.length-1]][mKey] = Math.max(0, t - alloc);
+    plan[AUG_WEEKS[AUG_WEEKS.length-1].id][mKey] = Math.max(0, t - alloc);
   });
-  Object.assign(AUG_PLAN, plan);
+  return plan;
 })();
+// Semanas já encerradas cujo gap está incorporado via computeAdjustedPlans dinamicamente
+const _DONE_WEEKS = ['03/08','10/08','17/08'];
+const _ADJ_START_IDX = AUG_WEEKS.findIndex(w=>w.id==='24/08');
 let _selectedWeek = '03/08';
 const LEAD_KEYS = new Set(['jL','pL','vL']);
 // Mapeamento métrica → coluna semana (H,L,Q,R) + filtro da planilha
@@ -597,14 +599,16 @@ function renderPacingPanel(){
 // Cadastros/Ativações: redistribui sempre (positivo e negativo).
 function computeAdjustedPlans(){
   const today=new Date().toISOString().slice(0,10);
-  // Estado mutável: começa nos planos base e vai ajustando semana a semana
+  // Começa com o plano base proporcional
   const adj=Object.fromEntries(AUG_WEEKS.map(w=>[w.id,{...AUG_PLAN[w.id]}]));
   if(!_rawRows.length) return adj;
 
-  // Processa cada semana concluída em sequência (simulação do "fim de semana")
+  // ── Passo 1: W1→W2→W3 encadeado ─────────────────────────────────────────
+  // Para cada semana já iniciada (exceto W4 que ainda não começou),
+  // lê o realizado, calcula o gap e redistribui proporcionalmente às seguintes.
   for(let i=0;i<AUG_WEEKS.length;i++){
     const wk=AUG_WEEKS[i];
-    if(today<=wk.to) break; // ainda não fechou
+    if(today<wk.from) break; // semana ainda não começou
 
     const remWks=AUG_WEEKS.slice(i+1);
     if(!remWks.length) break;
@@ -612,32 +616,34 @@ function computeAdjustedPlans(){
     Object.keys(MONTHLY_TARGETS).forEach(mKey=>{
       const isLead=LEAD_KEYS.has(mKey);
       const def=METRIC_DEFS[mKey]; if(!def) return;
-
-      // Realizado desta semana via coluna de semana (H/L/Q/R)
       const actual=countInSemana(def.semanaCol,wk.id,def.filterCol,def.filterVal);
-      const gap=adj[wk.id][mKey]-actual; // + = déficit, - = superávit
-
-      // Leads: superávit não reduz metas futuras
+      const gap=adj[wk.id][mKey]-actual;
       if(isLead && gap<=0) return;
-
-      // Distribui gap proporcionalmente aos planos AJUSTADOS das semanas restantes
-      // (os pesos já refletem redistribuições anteriores, não o plano base original)
       const sumRemAdj=remWks.reduce((s,rw)=>s+(adj[rw.id][mKey]||0),0);
       if(sumRemAdj===0) return;
-
-      let distributed=0;
+      let dist=0;
       remWks.forEach((rw,ri)=>{
-        let extra;
-        if(ri===remWks.length-1){
-          extra=gap-distributed; // última semana garante que a soma fecha
-        } else {
-          extra=Math.round(gap*adj[rw.id][mKey]/sumRemAdj);
-        }
+        const extra=ri===remWks.length-1
+          ?gap-dist
+          :Math.round(gap*adj[rw.id][mKey]/sumRemAdj);
         adj[rw.id][mKey]=Math.max(0,adj[rw.id][mKey]+extra);
-        distributed+=extra;
+        dist+=extra;
       });
     });
   }
+
+  // ── Passo 2: W4 e W5 pelo gap total acumulado (MTD vs meta mensal) ────────
+  // Lógica: gap = meta_mensal - sum(realizado W1+W2+W3)
+  //         6 dias úteis restantes: W4=5 dias, W5=1 dia
+  //         W4 = round(gap*5/6), W5 = gap - W4
+  // Garante split 5:1 correto para qualquer métrica, inclusive as com W5-base=0
+  Object.keys(MONTHLY_TARGETS).forEach(mKey=>{
+    const def=METRIC_DEFS[mKey]; if(!def) return;
+    const mtd=_DONE_WEEKS.reduce((s,wk)=>s+countInSemana(def.semanaCol,wk,def.filterCol,def.filterVal),0);
+    const gap=Math.max(0, MONTHLY_TARGETS[mKey]-mtd);
+    adj['24/08'][mKey]=Math.round(gap*5/6);
+    adj['31/08'][mKey]=gap-adj['24/08'][mKey];
+  });
 
   return adj;
 }
@@ -676,13 +682,13 @@ function renderMetaDiaria(){
   const panel=document.getElementById('md-panel');
   if(!_rawRows.length){panel.innerHTML='<div class="pacing-loading">Carregando dados…</div>';return;}
 
-  // Dias úteis RESTANTES na semana (excluindo hoje)
+  // Dias úteis RESTANTES na semana (incluindo hoje)
   const dow=new Date().getDay(); // 0=dom,1=seg..5=sex,6=sab
-  const remDays=(dow>=1&&dow<=5)?Math.max(1,5-dow):0;
+  const remDays=(dow>=1&&dow<=5)?Math.max(1,6-dow):0;
   const ALL_DIAS=['','seg','ter','qua','qui','sex'];
   let remLabel;
   if(dow===5){ remLabel='hoje (último dia da semana)'; }
-  else if(dow>=1&&dow<=4){ remLabel=remDays+' dia'+(remDays>1?'s':'')+' restante'+(remDays>1?'s':'')+' ('+ALL_DIAS.slice(dow+1,6).join('+')+')';}
+  else if(dow>=1&&dow<=4){ remLabel=remDays+' dia'+(remDays>1?'s':'')+' restante'+(remDays>1?'s':'')+' ('+ALL_DIAS.slice(dow,6).join('+')+')';}
   else { remLabel='fora da semana'; }
 
   // Actuals da semana atual
