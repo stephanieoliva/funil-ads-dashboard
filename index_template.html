@@ -298,22 +298,35 @@ const AUG_WEEKS = [
   {id:'24/08', label:'Sem 24/08', from:'2026-08-24', to:'2026-08-28'},
   {id:'31/08', label:'Sem 31/08', from:'2026-08-31', to:'2026-08-31'},
 ];
-const AUG_PLAN = {
-  '03/08': {jL:280,pL:275,vL:150, jC:42,pC:47,vC:30, jA:15,vA:10,haA:9,heA:8,duA:6},
-  '10/08': {jL:280,pL:275,vL:165, jC:42,pC:47,vC:33, jA:15,vA:11,haA:9,heA:9,duA:7},
-  '17/08': {jL:280,pL:275,vL:165, jC:42,pC:47,vC:33, jA:14,vA:11,haA:8,heA:9,duA:7},
-  '24/08': {jL:280,pL:275,vL:165, jC:42,pC:47,vC:33, jA:14,vA:11,haA:6,heA:7,duA:5},
-  '31/08': {jL:80, pL:80, vL:55,  jC:12,pC:12,vC:11, jA:2, vA:2, haA:0,heA:0,duA:0},
-};
-let _selectedWeek = '03/08';
-
 // ─── METAS MENSAIS AGOSTO ────────────────────────────────────────────────────
 const MONTHLY_TARGETS = {
-  jL:1200, pL:1180, vL:700,
-  jC:180,  pC:200,  vC:140,
-  jA:60,   vA:45,
-  haA:32,  heA:33,  duA:25
+  jL:1200, pL:1180, vL:850,
+  jC:160,  pC:175,  vC:140,
+  jA:55,   vA:45,
+  haA:28,  heA:29,  duA:21
 };
+
+// AUG_PLAN: distribuição proporcional dos dias úteis por semana (5+5+5+5+1=21)
+const AUG_PLAN = {};
+const _AUG_WDAYS = {'03/08':5,'10/08':5,'17/08':5,'24/08':5,'31/08':1};
+const _WDAYS_TOTAL = 21;
+(function buildAugPlan(){
+  const wks = AUG_WEEKS.map(w=>w.id);
+  const plan = {};
+  wks.forEach(w=>{plan[w]={};});
+  Object.keys(MONTHLY_TARGETS).forEach(mKey=>{
+    const t = MONTHLY_TARGETS[mKey];
+    let alloc = 0;
+    wks.slice(0,-1).forEach(w=>{
+      const s = Math.round(t * _AUG_WDAYS[w] / _WDAYS_TOTAL);
+      plan[w][mKey] = s;
+      alloc += s;
+    });
+    plan[wks[wks.length-1]][mKey] = Math.max(0, t - alloc);
+  });
+  Object.assign(AUG_PLAN, plan);
+})();
+let _selectedWeek = '03/08';
 const LEAD_KEYS = new Set(['jL','pL','vL']);
 // Mapeamento métrica → coluna semana (H,L,Q,R) + filtro da planilha
 const METRIC_DEFS = {
