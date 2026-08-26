@@ -282,6 +282,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         <div class="chart-wrap"><canvas id="chartTipoSup"></canvas></div>
       </div>
     </div>
+    <div class="chart-row" style="grid-template-columns:1fr">
+      <div class="chart-card">
+        <div class="chart-card-hdr"><h2>Cadastros por Região</h2></div>
+        <div class="chart-wrap" id="wrapRegiao" style="height:300px"><canvas id="chartRegiao"></canvas></div>
+      </div>
+    </div>
   </div>
 </div><!-- /tab-analises -->
 
@@ -387,6 +393,28 @@ const VENDEDOR_COLOR_POOL = [
 ];
 let _vendedorColorMap = {};
 
+// ─── Email → nome canônico (vendedor atual) ───────────────────────────────────
+function emailToName(email){
+  if(!email) return '';
+  return (email.split('@')[0]||'').split('.').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+}
+// Mapa de nomes curtos usados em "vendedor ativação" → nome canônico
+const VATV_TO_CANONICAL={
+  'Julia':'Júlia Nascimento','Vitória':'Vitória Borges',
+  'Hamanda':'Hamanda','Helio':'Hélio Regato','Maria Eduarda':'Maria Eduarda'
+};
+function vativCanonical(v){ return VATV_TO_CANONICAL[v]||v||''; }
+// Mapa de nomes derivados de email → nome canônico (acentos, etc.)
+const EMAIL_TO_CANONICAL={
+  'Helio Regato':'Hélio Regato','Julia Nascimento':'Júlia Nascimento',
+  'Vitoria Borges':'Vitória Borges','Hamanda':'Hamanda',
+  'Maria Barbosa':'Maria Barbosa','Pedro Ferreira':'Pedro Ferreira',
+  'Maria Eduarda':'Maria Eduarda',
+};
+function emailToCanonical(email){
+  const n=emailToName(email); return EMAIL_TO_CANONICAL[n]||n;
+}
+
 let _rawRows  = [];
 let _gran     = 'monthly';
 let _viewMode = 'origin';
@@ -394,7 +422,7 @@ const _origens    = new Set();
 const _vendedores = new Set();
 let _dateFrom = '2025-09-01';
 let _dateTo   = new Date().toISOString().slice(0,10);
-const _charts = { leads:null, cadastros:null, ativVendido:null, ativEntregue:null, convLeadCad:null, convCadAtiv:null, prazo:null, prazoPct:null, tipoStack:null, tipoSup:null };
+const _charts = { leads:null, cadastros:null, ativVendido:null, ativEntregue:null, convLeadCad:null, convCadAtiv:null, prazo:null, prazoPct:null, tipoStack:null, tipoSup:null, regiao:null };
 let _activeTab = 'graficos';
 const _anSDR = new Set();
 
@@ -933,8 +961,9 @@ function switchTab(tab){
 // ─── CHART RENDERING ──────────────────────────────────────────────────────────
 function buildAndRenderChart(cfg){
   const isVendedorMode=_viewMode==='vendedor'&&cfg.isAtivacao;
+  const isCadastroVendedor=_viewMode==='vendedor'&&cfg.isCadastro;
   const groupCol=isVendedorMode?'vendedor ativação':'origem do lead';
-  const colorMap=isVendedorMode?_vendedorColorMap:ORIGIN_COLORS;
+  const colorMap=(isVendedorMode||isCadastroVendedor)?_vendedorColorMap:ORIGIN_COLORS;
 
   let filtered=_rawRows.filter(r=>{
     let iso;
@@ -949,7 +978,10 @@ function buildAndRenderChart(cfg){
     return iso&&iso>=_dateFrom&&iso<=_dateTo;
   });
   if(isVendedorMode&&_vendedores.size>0){
-    filtered=filtered.filter(r=>_vendedores.has(r['vendedor ativação']||'Sem vendedor'));
+    filtered=filtered.filter(r=>_vendedores.has(vativCanonical(r['vendedor ativação']||'')||'Sem vendedor'));
+  }
+  if(isCadastroVendedor&&_vendedores.size>0){
+    filtered=filtered.filter(r=>_vendedores.has(emailToCanonical(r['vendedor atual']||'')||'Sem vendedor'));
   }
   if(_viewMode==='origin'&&_origens.size>0){
     filtered=filtered.filter(r=>_origens.has(r['origem do lead']||'Outros'));
@@ -962,7 +994,7 @@ function buildAndRenderChart(cfg){
     else if(_gran==='weekly') period=r[cfg.semanaCol];
     else                      period=r[cfg.mesCol];
     if(!period) return;
-    const group=r[groupCol]||'Outros';
+    const group=isCadastroVendedor?(emailToCanonical(r['vendedor atual'])||'Sem vendedor'):(r[groupCol]||'Outros');
     groupsSet.add(group);
     if(!periodMap[period]) periodMap[period]={};
     periodMap[period][group]=(periodMap[period][group]||0)+1;
@@ -977,10 +1009,10 @@ function buildAndRenderChart(cfg){
   const labels=periods.map(p=>periodLabel(p,_gran));
   let datasets,stacked;
 
-  const effectiveTotal=_viewMode==='total'||(isVendedorMode&&_vendedores.size===1)||(_viewMode==='origin'&&_origens.size===1);
+  const effectiveTotal=_viewMode==='total'||(isVendedorMode&&_vendedores.size===1)||(isCadastroVendedor&&_vendedores.size===1)||(_viewMode==='origin'&&_origens.size===1);
   if(effectiveTotal){
     stacked=false;
-    const label=(isVendedorMode&&_vendedores.size===1)?[..._vendedores][0]:(_viewMode==='origin'&&_origens.size===1)?[..._origens][0]:cfg.totalLabel;
+    const label=(isVendedorMode&&_vendedores.size===1)?[..._vendedores][0]:(isCadastroVendedor&&_vendedores.size===1)?[..._vendedores][0]:(_viewMode==='origin'&&_origens.size===1)?[..._origens][0]:cfg.totalLabel;
     datasets=[{label,data:periods.map(p=>Object.values(periodMap[p]).reduce((s,v)=>s+v,0)),backgroundColor:cfg.totalColor,borderRadius:4,borderSkipped:false}];
   }else{
     stacked=true;
@@ -1037,7 +1069,7 @@ function buildAndRenderConversionChart(){
 function render(){
   const CFGS=[
     {chartKey:'leads',       canvasId:'chartLeads',       dateCol:'data lead',               semanaCol:'semana lead',              mesCol:'mês lead',                toISO:leadDateToISO,  totalLabel:'Total de Leads',      totalColor:'rgba(108,99,255,0.85)'},
-    {chartKey:'cadastros',   canvasId:'chartCadastros',   dateCol:'data cadastro',            semanaCol:'semana cadastro',          mesCol:'mês cadastro',            toISO:ddmmyyToISO,    totalLabel:'Total de Cadastros',  totalColor:'rgba(108,99,255,0.85)'},
+    {chartKey:'cadastros',   canvasId:'chartCadastros',   dateCol:'data cadastro',            semanaCol:'semana cadastro',          mesCol:'mês cadastro',            toISO:ddmmyyToISO,    totalLabel:'Total de Cadastros',  totalColor:'rgba(108,99,255,0.85)', isCadastro:true},
     {chartKey:'ativVendido', canvasId:'chartAtivVendido', dateCol:'data ativação vendido',    semanaCol:'semana ativação vendido',  mesCol:'mês ativação vendido',    toISO:ddmmyyyyToISO,  totalLabel:'Total Ativ. Vendido', totalColor:'rgba(108,99,255,0.85)', isAtivacao:true},
     {chartKey:'ativEntregue',canvasId:'chartAtivEntregue',dateCol:'data ativação entregue',   semanaCol:'semana ativação entregue', mesCol:'mês ativação entregue',   toISO:ddmmyyyyToISO,  totalLabel:'Total Ativ. Entregue',totalColor:'rgba(108,99,255,0.85)', isAtivacao:true},
   ];
@@ -1191,8 +1223,12 @@ function populateOrigemDropdown(){
   updateOrigemBtn();
 }
 function populateVendedorDropdown(){
-  const vendedores=new Set(); _rawRows.forEach(r=>{const v=r['vendedor ativação'];if(v)vendedores.add(v);});
-  const sorted=[...vendedores].sort();
+  const vendedores=new Set();
+  _rawRows.forEach(r=>{
+    const vatv=r['vendedor ativação']; if(vatv){const cn=vativCanonical(vatv);if(cn)vendedores.add(cn);}
+    const vemail=r['vendedor atual'];  if(vemail){const cn=emailToCanonical(vemail);if(cn)vendedores.add(cn);}
+  });
+  const sorted=[...vendedores].filter(Boolean).sort();
   sorted.forEach((v,i)=>{_vendedorColorMap[v]=VENDEDOR_COLOR_POOL[i%VENDEDOR_COLOR_POOL.length];});
   buildMultiPanel('vendedorPanel',sorted,toggleVendedor,'Todos'); updateVendedorBtn();
 }
@@ -1369,6 +1405,62 @@ function renderAnalises(){
   const c4=document.getElementById('chartTipoSup');
   if(_charts.tipoSup){_charts.tipoSup.data.labels=tiLabels;_charts.tipoSup.data.datasets=supDS;_charts.tipoSup.update();}
   else{_charts.tipoSup=new Chart(c4,{type:'bar',data:{labels:tiLabels,datasets:supDS},plugins:[_barInsidePctPlugin],options:pctOpts});}
+
+  // ── Cadastros por Região (horizontal bar, sorted desc) ──
+  const regionMap={};
+  filtered.forEach(r=>{
+    const reg=r['region id']||'Sem região';
+    regionMap[reg]=(regionMap[reg]||0)+1;
+  });
+  const sortedRegs=Object.entries(regionMap).sort((a,b)=>b[1]-a[1]);
+  const regLabels=sortedRegs.map(e=>e[0]);
+  const regData=sortedRegs.map(e=>e[1]);
+
+  // Ajusta altura dinamicamente: 26px por região, mínimo 200px
+  const wrapRegiao=document.getElementById('wrapRegiao');
+  const regH=Math.max(200, regLabels.length*26+60);
+  if(wrapRegiao) wrapRegiao.style.height=regH+'px';
+
+  const regDS=[{label:'Cadastros',data:regData,backgroundColor:'rgba(108,99,255,0.80)',borderRadius:4,borderSkipped:false}];
+
+  // Plugin: rótulo com valor à direita de cada barra
+  const _regLabelPlugin={id:'regLabel',afterDatasetsDraw(chart){
+    const {ctx,scales:{x,y}}=chart;
+    chart.data.datasets[0].data.forEach((val,i)=>{
+      const meta=chart.getDatasetMeta(0).data[i];
+      const bx=x.getPixelForValue(val); const by=meta.y;
+      ctx.save();
+      ctx.font='bold 9px sans-serif'; ctx.fillStyle='#374151';
+      ctx.textBaseline='middle'; ctx.textAlign='left';
+      ctx.fillText(val, bx+5, by);
+      ctx.restore();
+    });
+  }};
+
+  const c5=document.getElementById('chartRegiao');
+  if(_charts.regiao){
+    _charts.regiao.data.labels=regLabels;
+    _charts.regiao.data.datasets=regDS;
+    _charts.regiao.resize();
+    _charts.regiao.update();
+  } else {
+    _charts.regiao=new Chart(c5,{
+      type:'bar',
+      data:{labels:regLabels,datasets:regDS},
+      plugins:[_regLabelPlugin],
+      options:{
+        indexAxis:'y',
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label(item){return 'Cadastros: '+item.parsed.x;}}}},
+        scales:{
+          x:{beginAtZero:true,ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}},
+          y:{ticks:{font:{size:9}},grid:{display:false}},
+        },
+        layout:{padding:{right:40,top:4}},
+      }
+    });
+  }
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
