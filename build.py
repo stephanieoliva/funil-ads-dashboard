@@ -16,7 +16,7 @@ import os
 from datetime import datetime, timezone, timedelta
 
 KEEP = [
-    'data lead', 'origem do lead', 'semana lead', 'mês lead',
+    'data lead', 'origem do lead', 'semana lead', 'mês lead', 'utm_campaign',
     'data cadastro', 'semana cadastro', 'mês cadastro',
     'data ativação vendido', 'semana ativação vendido', 'mês ativação vendido',
     'data ativação entregue', 'semana ativação entregue', 'mês ativação entregue',
@@ -24,10 +24,11 @@ KEEP = [
 ]
 
 def main():
-    if len(sys.argv) < 2:
-        print("uso: build.py <csv_bruto>", file=sys.stderr)
+    if len(sys.argv) < 3:
+        print("uso: build.py <csv_bruto_funil> <csv_bruto_clientes_ativos>", file=sys.stderr)
         sys.exit(1)
     csv_path = sys.argv[1]
+    ca_csv_path = sys.argv[2]
 
     repo_root = os.path.dirname(os.path.abspath(__file__))
     template_path = os.path.join(repo_root, 'index_template.html')
@@ -47,6 +48,12 @@ def main():
     trimmed_csv = buf.getvalue()
     csv_b64 = base64.b64encode(trimmed_csv.encode('utf-8')).decode('ascii')
 
+    # CSV de Clientes Ativos (aba gmv/lc2): embutido bruto, sem trim — o parsing
+    # no cliente é posicional (colunas por índice), não por nome de cabeçalho.
+    with open(ca_csv_path, 'rb') as f:
+        ca_csv_bytes = f.read()
+    ca_csv_b64 = base64.b64encode(ca_csv_bytes).decode('ascii')
+
     # Horário de Fortaleza (UTC-3), fixo (não usa DST no Brasil atualmente)
     tz = timezone(timedelta(hours=-3))
     now = datetime.now(tz)
@@ -55,12 +62,15 @@ def main():
     with open(template_path, encoding='utf-8') as f:
         template = f.read()
 
-    out = template.replace('__CSV_B64__', csv_b64).replace('__BUILD_TIME__', build_time)
+    out = (template
+           .replace('__CSV_B64__', csv_b64)
+           .replace('__CA_CSV_B64__', ca_csv_b64)
+           .replace('__BUILD_TIME__', build_time))
 
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(out)
 
-    print(f"OK: {len(rows)} linhas, index.html gerado ({os.path.getsize(out_path)} bytes), build_time={build_time}")
+    print(f"OK: {len(rows)} linhas (funil), CA csv {len(ca_csv_bytes)} bytes, index.html gerado ({os.path.getsize(out_path)} bytes), build_time={build_time}")
 
 if __name__ == '__main__':
     main()

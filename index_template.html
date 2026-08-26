@@ -127,6 +127,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <button class="tab-btn" data-tab="mtd" onclick="switchTab('mtd')">📊 MTD Agosto</button>
   <button class="tab-btn" data-tab="analises" onclick="switchTab('analises')">🔍 Análises</button>
   <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">💰 Clientes Ativos</button>
+  <button class="tab-btn" data-tab="retargeting" onclick="switchTab('retargeting')">🎯 Retargeting</button>
 </div>
 
 <!-- ═══ GRÁFICOS TAB ═══ -->
@@ -156,6 +157,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <div class="ms-container">
         <button class="ms-btn" id="vendedorBtn" onclick="togglePanel('vendedor')">Todos ▾</button>
         <div class="ms-panel" id="vendedorPanel"></div>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Criativo</span>
+      <div class="ms-container">
+        <button class="ms-btn" id="criativoBtn" onclick="togglePanel('criativo')">Todos ▾</button>
+        <div class="ms-panel" id="criativoPanel"></div>
       </div>
     </div>
     <div class="ctrl-group">
@@ -299,28 +307,57 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
       <span style="font-size:11px;color:#9ca3af">Canal Ads · mensal · fonte: aba gmv/lc2</span>
     </div>
     <p style="font-size:11px;color:#9ca3af;margin:0 0 20px">Ago/26 parcial (mês em andamento)</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
       <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:16px">
-        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">GMV Entregue (R$)</p>
+        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">GMV Entregue</p>
         <div style="position:relative;height:260px"><canvas id="ca-gmv"></canvas></div>
       </div>
       <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:16px">
-        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">LC2 Absoluto (R$)</p>
+        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">Clientes Ativos</p>
+        <div style="position:relative;height:260px"><canvas id="ca-cli"></canvas></div>
+      </div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:16px">
+        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">LC2 Abs</p>
         <div style="position:relative;height:260px"><canvas id="ca-lc2"></canvas></div>
       </div>
       <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:16px">
-        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">LC2 % sobre GMV</p>
+        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">LC2 %</p>
         <div style="position:relative;height:260px"><canvas id="ca-pct"></canvas></div>
       </div>
     </div>
   </div>
 </div><!-- /tab-clientes -->
 
+<!-- ═══ RETARGETING TAB ═══ -->
+<div id="tab-retargeting" style="display:none">
+  <div class="controls">
+    <div class="ctrl-group">
+      <span class="ctrl-label">Granularidade</span>
+      <button class="slice-btn ret-gran-btn" data-gran="daily"   onclick="setRetGran('daily')">Diário</button>
+      <button class="slice-btn ret-gran-btn" data-gran="weekly"  onclick="setRetGran('weekly')">Semanal</button>
+      <button class="slice-btn ret-gran-btn active" data-gran="monthly" onclick="setRetGran('monthly')">Mensal</button>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">De</span>
+      <input type="date" class="date-inp" id="retDateFrom" onchange="setRetDateFrom(this.value)">
+      <span class="ctrl-label">Até</span>
+      <input type="date" class="date-inp" id="retDateTo" onchange="setRetDateTo(this.value)">
+    </div>
+  </div>
+  <div style="padding:20px;display:grid;grid-template-columns:1fr;gap:20px">
+    <div class="chart-card">
+      <div class="chart-card-hdr"><h2>Conversas Iniciadas</h2></div>
+      <div class="chart-wrap" style="height:280px"><canvas id="chartRetConversas"></canvas></div>
+    </div>
+  </div>
+</div><!-- /tab-retargeting -->
+
 <div class="footer-note" style="font-size:10px;color:#9ca3af;text-align:center;padding:14px 20px 20px;">Dashboard estático publicado a partir do Google Sheets "Funil ADS [temporário]" — atualiza automaticamente 1x por dia.</div>
 
 <script>
 // ─── EMBEDDED DATA (gerado automaticamente pelo build, não editar à mão) ─────
 const EMBEDDED_CSV_B64 = "__CSV_B64__";
+const EMBEDDED_CA_CSV_B64 = "__CA_CSV_B64__";
 
 // ─── PACING AGOSTO CONFIG ─────────────────────────────────────────────────────
 const AUG_WEEKS = [
@@ -416,10 +453,18 @@ function emailToCanonical(email){
 }
 
 let _rawRows  = [];
+let _retRows  = [];
 let _gran     = 'monthly';
+let _retGran  = 'monthly';
+let _retDateFrom = '2025-09-01';
+let _retDateTo   = new Date().toISOString().slice(0,10);
+let _retChart    = null;
+let _caData = [];
+const _caCharts = {};
 let _viewMode = 'origin';
 const _origens    = new Set();
 const _vendedores = new Set();
+const _criativos  = new Set();
 let _dateFrom = '2025-09-01';
 let _dateTo   = new Date().toISOString().slice(0,10);
 const _charts = { leads:null, cadastros:null, ativVendido:null, ativEntregue:null, convLeadCad:null, convCadAtiv:null, prazo:null, prazoPct:null, tipoStack:null, tipoSup:null, regiao:null };
@@ -507,6 +552,39 @@ function periodLabel(p,gran){
   }
 }
 
+// ─── CLIENTES ATIVOS HELPERS ──────────────────────────────────────────────────
+const _BR_M = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function parseDateToMonth(dateStr){
+  const s=(dateStr||'').trim();
+  if(!s) return null;
+  // format mm/dd/yy or mm-dd-yy: "01/01/25" or "01-01-25" → Jan/25
+  const sep=s.includes('/')?'/':(s.includes('-')?'-':null);
+  if(sep){
+    const parts=s.split(sep);
+    if(parts.length>=3){
+      const mm=parseInt(parts[0],10);
+      const yy=parts[2].slice(-2);
+      if(!isNaN(mm)&&mm>=1&&mm<=12) return _BR_M[mm-1]+'/'+yy;
+    }
+  }
+  // fallback: Excel serial integer
+  const serial=parseInt(s,10);
+  if(!isNaN(serial)&&serial>1000){
+    const d=new Date(Date.UTC(1899,11,30)+serial*86400000);
+    return _BR_M[d.getUTCMonth()]+'/'+String(d.getUTCFullYear()).slice(2);
+  }
+  return null;
+}
+function parseBRL(s){
+  return parseFloat((s||'').replace(/"/g,'').replace(',','.'))||0;
+}
+function nowMonthLabel(){
+  const n=new Date(); return _BR_M[n.getMonth()]+'/'+String(n.getFullYear()).slice(2);
+}
+function parseMonthKey(k){ // returns numeric sort key YYYYMM
+  const [m,y]=k.split('/'); return parseInt('20'+y)*100+_BR_M.indexOf(m);
+}
+
 // ─── LOAD ─────────────────────────────────────────────────────────────────────
 let _loading=false;
 // ─── LOAD (dados embutidos no build, sem chamada de rede) ────────────────────
@@ -520,15 +598,21 @@ function loadData(){
     const bin=atob(EMBEDDED_CSV_B64);
     const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
     const csv=new TextDecoder('utf-8').decode(bytes);
-    _rawRows=parseCSV(csv);
+    const allRows=parseCSV(csv);
+    _rawRows=allRows.filter(r=>(r['origem do lead']||'').trim()!=='');
+    _retRows=allRows.filter(r=>(r['origem do lead']||'').trim()==='');
+    const rdf=document.getElementById('retDateFrom'); if(rdf) rdf.value=_retDateFrom;
+    const rdt=document.getElementById('retDateTo');   if(rdt) rdt.value=_retDateTo;
     populateOrigemDropdown();
     populateVendedorDropdown();
+    populateCriativoDropdown();
     populateAnSDRDropdown();
     render();
     renderPacingPanel();
     renderMetaDiaria();
     renderMTD();
     renderAnalises();
+    loadClientesAtivos();
   }catch(e){
     console.error('loadData:',e);
     if(ll) ll.style.display='none';
@@ -951,11 +1035,13 @@ function switchTab(tab){
   document.getElementById('tab-mtd').style.display=tab==='mtd'?'':'none';
   document.getElementById('tab-analises').style.display=tab==='analises'?'':'none';
   document.getElementById('tab-clientes').style.display=tab==='clientes'?'':'none';
+  document.getElementById('tab-retargeting').style.display=tab==='retargeting'?'':'none';
   if(tab==='pacing'&&_rawRows.length) renderPacingPanel();
   if(tab==='diaria'&&_rawRows.length) renderMetaDiaria();
   if(tab==='mtd'&&_rawRows.length) renderMTD();
   if(tab==='analises'&&_rawRows.length) renderAnalises();
   if(tab==='clientes') renderClientesAtivos();
+  if(tab==='retargeting') renderRetargeting();
 }
 
 // ─── CHART RENDERING ──────────────────────────────────────────────────────────
@@ -985,6 +1071,9 @@ function buildAndRenderChart(cfg){
   }
   if(_viewMode==='origin'&&_origens.size>0){
     filtered=filtered.filter(r=>_origens.has(r['origem do lead']||'Outros'));
+  }
+  if(_criativos.size>0){
+    filtered=filtered.filter(r=>_criativos.has(r['utm_campaign']||''));
   }
 
   const periodMap={},groupsSet=new Set();
@@ -1027,6 +1116,7 @@ function buildAndRenderConversionChart(){
   _rawRows.forEach(r=>{
     const origin=r['origem do lead']||'Outros';
     if(hasOrigemFiltro&&!_origens.has(origin)) return;
+    if(_criativos.size>0&&!_criativos.has(r['utm_campaign']||'')) return;
     originsSet.add(origin);
     // Leads — usa semana lead (col H) em modo semanal
     const lISO=_gran==='weekly'?anyDateToISO(r['semana lead']):leadDateToISO(r['data lead']);
@@ -1221,6 +1311,21 @@ function populateOrigemDropdown(){
   buildMultiPanel('origemPanel',sorted,toggleOrigem,'Todas');
   buildMultiPanel('anOrigemPanel',sorted,toggleOrigem,'Todas');
   updateOrigemBtn();
+}
+function toggleCriativo(val){
+  if(val==='__all__') _criativos.clear();
+  else{if(_criativos.has(val))_criativos.delete(val);else _criativos.add(val);}
+  syncPanelCheckboxes('criativoPanel',_criativos); updateCriativoBtn();
+  if(_rawRows.length) render();
+}
+function updateCriativoBtn(){
+  const b=document.getElementById('criativoBtn'); if(!b) return;
+  b.textContent=_criativos.size===0?'Todos ▾':_criativos.size===1?[..._criativos][0]+' ▾':_criativos.size+' criativos ▾';
+}
+function populateCriativoDropdown(){
+  const criativos=new Set(); _rawRows.forEach(r=>{const c=r['utm_campaign'];if(c)criativos.add(c);});
+  buildMultiPanel('criativoPanel',[...criativos].sort(),toggleCriativo,'Todos');
+  updateCriativoBtn();
 }
 function populateVendedorDropdown(){
   const vendedores=new Set();
@@ -1481,37 +1586,56 @@ function renderAnalises(){
 })();
 
 // ─── CLIENTES ATIVOS ─────────────────────────────────────────────────────────
-// Dados mensais da aba gmv/lc2 (canal Ads). Ago/26 é parcial.
-const _CA_DATA = [
-  {mes:'Set/25', gmv:3499,    lc2:3},
-  {mes:'Out/25', gmv:39114,   lc2:1259},
-  {mes:'Nov/25', gmv:67578,   lc2:1830},
-  {mes:'Dez/25', gmv:118529,  lc2:3502},
-  {mes:'Jan/26', gmv:175746,  lc2:-17},
-  {mes:'Fev/26', gmv:259998,  lc2:8141},
-  {mes:'Mar/26', gmv:377033,  lc2:3125},
-  {mes:'Abr/26', gmv:392235,  lc2:8701},
-  {mes:'Mai/26', gmv:473782,  lc2:15307},
-  {mes:'Jun/26', gmv:510459,  lc2:18831},
-  {mes:'Jul/26', gmv:648904,  lc2:31581},
-  {mes:'Ago/26', gmv:537360,  lc2:29207, partial:true},
-];
-
-let _caInited = false;
-const _caCharts = {};
+function loadClientesAtivos(){
+  try{
+    const bin=atob(EMBEDDED_CA_CSV_B64);
+    const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+    const csv=new TextDecoder('utf-8').decode(bytes);
+    const monthMap={};
+    const monthClients={};
+    csv.split('\n').slice(1).forEach(line=>{
+      // parse quoted CSV
+      const row=[]; let inQ=false, cur='';
+      for(const ch of line.replace(/\r$/,'')){
+        if(ch==='"'){inQ=!inQ;}
+        else if(ch===','&&!inQ){row.push(cur);cur='';}
+        else cur+=ch;
+      }
+      row.push(cur);
+      const delivery=(row[0]||'').trim();
+      const ads=(row[4]||'').trim();
+      if(!delivery||!ads) return;
+      const mes=parseDateToMonth(delivery);
+      if(!mes) return;
+      if(!monthMap[mes]){monthMap[mes]={gmv:0,lc2:0};monthClients[mes]=new Set();}
+      monthMap[mes].gmv+=parseBRL(row[2]);
+      monthMap[mes].lc2+=parseBRL(row[3]);
+      const cid=(row[1]||'').trim();
+      if(cid) monthClients[mes].add(cid);
+    });
+    const now=nowMonthLabel();
+    _caData=Object.entries(monthMap)
+      .sort((a,b)=>parseMonthKey(a[0])-parseMonthKey(b[0]))
+      .map(([mes,{gmv,lc2}])=>({mes,gmv:Math.round(gmv),lc2:Math.round(lc2),clientes:(monthClients[mes]||new Set()).size,partial:mes===now}));
+    renderClientesAtivos();
+  }catch(e){
+    console.error('loadClientesAtivos:',e);
+  }
+}
 
 function renderClientesAtivos(){
-  if(_caInited) return;
-  _caInited = true;
+  if(!_caData.length) return;
 
-  const labels = _CA_DATA.map(d=>d.mes);
-  const gmvs   = _CA_DATA.map(d=>d.gmv);
-  const lc2s   = _CA_DATA.map(d=>d.lc2);
-  const pcts   = _CA_DATA.map(d=>d.gmv?+(d.lc2/d.gmv*100).toFixed(2):0);
+  const labels  = _caData.map(d=>d.mes);
+  const gmvs    = _caData.map(d=>d.gmv);
+  const lc2s    = _caData.map(d=>d.lc2);
+  const pcts    = _caData.map(d=>d.gmv?+(d.lc2/d.gmv*100).toFixed(2):0);
+  const clis    = _caData.map(d=>d.clientes||0);
 
   const solidBlue   = 'rgba(108,99,255,0.82)';
   const solidGreen  = 'rgba(16,185,129,0.82)';
   const solidOrange = 'rgba(245,158,11,0.82)';
+  const solidTeal   = 'rgba(20,184,166,0.82)';
 
   // Above-bar label plugin for these charts
   const _caLabelPlugin = {
@@ -1559,29 +1683,102 @@ function renderClientesAtivos(){
   };
   const fmtPct = v => v.toFixed(1)+'%';
 
-  const gmvChart = new Chart(document.getElementById('ca-gmv'), {
-    type:'bar',
-    data:{labels, datasets:[{data:gmvs, backgroundColor:solidBlue, borderRadius:4}]},
-    options: makeOpts('R$ ','',0),
-    plugins:[_caLabelPlugin]
-  });
-  gmvChart._caFmt = fmtK;
+  const makeChart = (id, data, bg, opts, fmt) => {
+    if(_caCharts[id]){
+      _caCharts[id].data.labels=labels;
+      _caCharts[id].data.datasets[0].data=data;
+      _caCharts[id]._caFmt=fmt;
+      _caCharts[id].update();
+    } else {
+      const c=new Chart(document.getElementById(id),{type:'bar',data:{labels,datasets:[{data,backgroundColor:bg,borderRadius:4}]},options:opts,plugins:[_caLabelPlugin]});
+      c._caFmt=fmt;
+      _caCharts[id]=c;
+    }
+  };
+  makeChart('ca-gmv', gmvs, solidBlue,   makeOpts('R$ ','',0), fmtK);
+  makeChart('ca-cli', clis, solidTeal,   makeOpts('','',0),    v=>v.toLocaleString('pt-BR'));
+  makeChart('ca-lc2', lc2s, solidGreen,  makeOpts('R$ ','',0), fmtAbs);
+  makeChart('ca-pct', pcts, solidOrange, makeOpts('','%',1),   fmtPct);
+}
 
-  const lc2Chart = new Chart(document.getElementById('ca-lc2'), {
-    type:'bar',
-    data:{labels, datasets:[{data:lc2s, backgroundColor:solidGreen, borderRadius:4}]},
-    options: makeOpts('R$ ','',0),
-    plugins:[_caLabelPlugin]
-  });
-  lc2Chart._caFmt = fmtAbs;
+// ─── RETARGETING ──────────────────────────────────────────────────────────────
+function setRetGran(g){
+  _retGran=g;
+  document.querySelectorAll('.ret-gran-btn').forEach(b=>b.classList.toggle('active',b.dataset.gran===g));
+  renderRetargeting();
+}
+function setRetDateFrom(v){ _retDateFrom=v; renderRetargeting(); }
+function setRetDateTo(v)  { _retDateTo=v;   renderRetargeting(); }
 
-  const pctChart = new Chart(document.getElementById('ca-pct'), {
-    type:'bar',
-    data:{labels, datasets:[{data:pcts, backgroundColor:solidOrange, borderRadius:4}]},
-    options: makeOpts('','%',1),
-    plugins:[_caLabelPlugin]
+function renderRetargeting(){
+  if(!_retRows.length) return;
+
+  // Build period buckets
+  const periodoMap={};
+  _retRows.forEach(r=>{
+    const d=r['data lead']; if(!d||d==='—') return;
+    const iso=anyDateToISO(d);
+    if(!iso||iso<_retDateFrom||iso>_retDateTo) return;
+    let key;
+    if(_retGran==='daily'){
+      key=iso;
+    } else if(_retGran==='weekly'){
+      const dt=new Date(iso+'T00:00:00');
+      const day=dt.getDay(); // 0=Sun
+      const mon=new Date(dt); mon.setDate(dt.getDate()-(day===0?6:day-1));
+      key=mon.toISOString().slice(0,10);
+    } else {
+      key=iso.slice(0,7); // YYYY-MM
+    }
+    periodoMap[key]=(periodoMap[key]||0)+1;
   });
-  pctChart._caFmt = fmtPct;
+
+  const sorted=Object.keys(periodoMap).sort();
+  const labels=sorted.map(k=>{
+    if(_retGran==='monthly'){
+      const [y,m]=k.split('-');
+      return _BR_M[parseInt(m,10)-1]+'/'+y.slice(2);
+    }
+    if(_retGran==='weekly') return k.slice(5).replace('-','/');
+    return k.slice(5).replace('-','/');
+  });
+  const data=sorted.map(k=>periodoMap[k]);
+
+  const canvas=document.getElementById('chartRetConversas');
+  if(!canvas) return;
+
+  const retLabelPlugin={
+    id:'retLabel',
+    afterDatasetsDraw(chart){
+      const {ctx,data:cd,chartArea:{top},scales:{x,y}}=chart;
+      ctx.save(); ctx.font='bold 10px sans-serif'; ctx.textAlign='center'; ctx.fillStyle='#374151';
+      cd.datasets[0].data.forEach((v,i)=>{
+        if(!v) return;
+        const xp=x.getPixelForValue(i), yp=y.getPixelForValue(v);
+        ctx.fillText(v.toLocaleString('pt-BR'), xp, Math.max(yp-6, top+10));
+      });
+      ctx.restore();
+    }
+  };
+
+  const opts={
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y.toLocaleString('pt-BR')}}},
+    scales:{x:{grid:{display:false}},y:{beginAtZero:true,grid:{color:'#f3f4f6'},ticks:{stepSize:1}}}
+  };
+
+  if(_retChart){
+    _retChart.data.labels=labels;
+    _retChart.data.datasets[0].data=data;
+    _retChart.update();
+  } else {
+    _retChart=new Chart(canvas,{
+      type:'bar',
+      data:{labels,datasets:[{data,backgroundColor:'rgba(108,99,255,0.82)',borderRadius:4}]},
+      options:opts,
+      plugins:[retLabelPlugin]
+    });
+  }
 }
 </script>
 </body>
