@@ -126,6 +126,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <button class="tab-btn" data-tab="diaria" onclick="switchTab('diaria')">📋 Meta Semana Atual</button>
   <button class="tab-btn" data-tab="mtd" onclick="switchTab('mtd')">📊 MTD Agosto</button>
   <button class="tab-btn" data-tab="analises" onclick="switchTab('analises')">🔍 Análises</button>
+  <button class="tab-btn" data-tab="clientes" onclick="switchTab('clientes')">💰 Clientes Ativos</button>
 </div>
 
 <!-- ═══ GRÁFICOS TAB ═══ -->
@@ -283,6 +284,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     </div>
   </div>
 </div><!-- /tab-analises -->
+
+<!-- ═══ CLIENTES ATIVOS TAB ═══ -->
+<div id="tab-clientes" style="display:none">
+  <div style="padding:24px 20px">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px">
+      <h2 style="font-size:16px;font-weight:700;color:#1f2937;margin:0">Clientes Ativos — GMV &amp; LC2</h2>
+      <span style="font-size:11px;color:#9ca3af">Canal Ads · mensal · fonte: aba gmv/lc2</span>
+    </div>
+    <p style="font-size:11px;color:#9ca3af;margin:0 0 20px">Ago/26 parcial (mês em andamento)</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:16px">
+        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">GMV Entregue (R$)</p>
+        <div style="position:relative;height:260px"><canvas id="ca-gmv"></canvas></div>
+      </div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:16px">
+        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">LC2 Absoluto (R$)</p>
+        <div style="position:relative;height:260px"><canvas id="ca-lc2"></canvas></div>
+      </div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:16px">
+        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">LC2 % sobre GMV</p>
+        <div style="position:relative;height:260px"><canvas id="ca-pct"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div><!-- /tab-clientes -->
 
 <div class="footer-note" style="font-size:10px;color:#9ca3af;text-align:center;padding:14px 20px 20px;">Dashboard estático publicado a partir do Google Sheets "Funil ADS [temporário]" — atualiza automaticamente 1x por dia.</div>
 
@@ -454,6 +480,7 @@ function periodLabel(p,gran){
 }
 
 // ─── LOAD ─────────────────────────────────────────────────────────────────────
+let _loading=false;
 // ─── LOAD (dados embutidos no build, sem chamada de rede) ────────────────────
 function loadData(){
   const today=new Date().toISOString().slice(0,10);
@@ -895,10 +922,12 @@ function switchTab(tab){
   document.getElementById('tab-diaria').style.display=tab==='diaria'?'':'none';
   document.getElementById('tab-mtd').style.display=tab==='mtd'?'':'none';
   document.getElementById('tab-analises').style.display=tab==='analises'?'':'none';
+  document.getElementById('tab-clientes').style.display=tab==='clientes'?'':'none';
   if(tab==='pacing'&&_rawRows.length) renderPacingPanel();
   if(tab==='diaria'&&_rawRows.length) renderMetaDiaria();
   if(tab==='mtd'&&_rawRows.length) renderMTD();
   if(tab==='analises'&&_rawRows.length) renderAnalises();
+  if(tab==='clientes') renderClientesAtivos();
 }
 
 // ─── CHART RENDERING ──────────────────────────────────────────────────────────
@@ -1358,6 +1387,110 @@ function renderAnalises(){
   });
   loadData();
 })();
+
+// ─── CLIENTES ATIVOS ─────────────────────────────────────────────────────────
+// Dados mensais da aba gmv/lc2 (canal Ads). Ago/26 é parcial.
+const _CA_DATA = [
+  {mes:'Set/25', gmv:3499,    lc2:3},
+  {mes:'Out/25', gmv:39114,   lc2:1259},
+  {mes:'Nov/25', gmv:67578,   lc2:1830},
+  {mes:'Dez/25', gmv:118529,  lc2:3502},
+  {mes:'Jan/26', gmv:175746,  lc2:-17},
+  {mes:'Fev/26', gmv:259998,  lc2:8141},
+  {mes:'Mar/26', gmv:377033,  lc2:3125},
+  {mes:'Abr/26', gmv:392235,  lc2:8701},
+  {mes:'Mai/26', gmv:473782,  lc2:15307},
+  {mes:'Jun/26', gmv:510459,  lc2:18831},
+  {mes:'Jul/26', gmv:648904,  lc2:31581},
+  {mes:'Ago/26', gmv:537360,  lc2:29207, partial:true},
+];
+
+let _caInited = false;
+const _caCharts = {};
+
+function renderClientesAtivos(){
+  if(_caInited) return;
+  _caInited = true;
+
+  const labels = _CA_DATA.map(d=>d.mes);
+  const gmvs   = _CA_DATA.map(d=>d.gmv);
+  const lc2s   = _CA_DATA.map(d=>d.lc2);
+  const pcts   = _CA_DATA.map(d=>d.gmv?+(d.lc2/d.gmv*100).toFixed(2):0);
+
+  const solidBlue   = 'rgba(108,99,255,0.82)';
+  const solidGreen  = 'rgba(16,185,129,0.82)';
+  const solidOrange = 'rgba(245,158,11,0.82)';
+
+  // Above-bar label plugin for these charts
+  const _caLabelPlugin = {
+    id:'caLabel',
+    afterDatasetsDraw(chart){
+      const {ctx}=chart;
+      const ds=chart.data.datasets[0];
+      const meta=chart.getDatasetMeta(0);
+      const fmt=chart._caFmt||((v)=>v);
+      meta.data.forEach((bar,i)=>{
+        const v=ds.data[i];
+        if(v==null) return;
+        ctx.save();
+        ctx.font='bold 9px system-ui,sans-serif';
+        ctx.fillStyle='#374151';
+        ctx.textAlign='center';
+        ctx.textBaseline='bottom';
+        ctx.fillText(fmt(v), bar.x, bar.y-2);
+        ctx.restore();
+      });
+    }
+  };
+
+  const makeOpts = (prefix, suffix, decimals) => ({
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}, caLabel:{}, tooltip:{callbacks:{
+      label: ctx => prefix+(ctx.parsed.y?.toLocaleString('pt-BR',{maximumFractionDigits:decimals})??'—')+suffix
+    }}},
+    scales:{
+      x:{ticks:{font:{size:9}}, grid:{display:false}},
+      y:{ticks:{font:{size:9}, callback:v=>prefix+v.toLocaleString('pt-BR',{maximumFractionDigits:0})+suffix}, grid:{color:'#f3f4f6'}}
+    }
+  });
+
+  const fmtK = v => {
+    const abs=Math.abs(v);
+    if(abs>=1000000) return 'R$'+(v/1000000).toFixed(1)+'M';
+    if(abs>=1000) return 'R$'+(v/1000).toFixed(0)+'K';
+    return 'R$'+v;
+  };
+  const fmtAbs = v => {
+    const abs=Math.abs(v);
+    if(abs>=1000) return 'R$'+(v/1000).toFixed(0)+'K';
+    return 'R$'+v;
+  };
+  const fmtPct = v => v.toFixed(1)+'%';
+
+  const gmvChart = new Chart(document.getElementById('ca-gmv'), {
+    type:'bar',
+    data:{labels, datasets:[{data:gmvs, backgroundColor:solidBlue, borderRadius:4}]},
+    options: makeOpts('R$ ','',0),
+    plugins:[_caLabelPlugin]
+  });
+  gmvChart._caFmt = fmtK;
+
+  const lc2Chart = new Chart(document.getElementById('ca-lc2'), {
+    type:'bar',
+    data:{labels, datasets:[{data:lc2s, backgroundColor:solidGreen, borderRadius:4}]},
+    options: makeOpts('R$ ','',0),
+    plugins:[_caLabelPlugin]
+  });
+  lc2Chart._caFmt = fmtAbs;
+
+  const pctChart = new Chart(document.getElementById('ca-pct'), {
+    type:'bar',
+    data:{labels, datasets:[{data:pcts, backgroundColor:solidOrange, borderRadius:4}]},
+    options: makeOpts('','%',1),
+    plugins:[_caLabelPlugin]
+  });
+  pctChart._caFmt = fmtPct;
+}
 </script>
 </body>
 </html>
