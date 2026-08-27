@@ -324,6 +324,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
         <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">LC2 %</p>
         <div style="position:relative;height:260px"><canvas id="ca-pct"></canvas></div>
       </div>
+      <div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:16px">
+        <p style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:0 0 12px">GMV / Cliente</p>
+        <div style="position:relative;height:260px"><canvas id="ca-gmvcli"></canvas></div>
+      </div>
     </div>
   </div>
 </div><!-- /tab-clientes -->
@@ -1626,11 +1630,12 @@ function loadClientesAtivos(){
 function renderClientesAtivos(){
   if(!_caData.length) return;
 
-  const labels  = _caData.map(d=>d.mes);
-  const gmvs    = _caData.map(d=>d.gmv);
-  const lc2s    = _caData.map(d=>d.lc2);
-  const pcts    = _caData.map(d=>d.gmv?+(d.lc2/d.gmv*100).toFixed(2):0);
-  const clis    = _caData.map(d=>d.clientes||0);
+  const labels    = _caData.map(d=>d.mes);
+  const gmvs      = _caData.map(d=>d.gmv);
+  const lc2s      = _caData.map(d=>d.lc2);
+  const pcts      = _caData.map(d=>d.gmv?+(d.lc2/d.gmv*100).toFixed(2):0);
+  const clis      = _caData.map(d=>d.clientes||0);
+  const gmvPerCli = _caData.map(d=>d.clientes?Math.round(d.gmv/d.clientes):0);
 
   const solidBlue   = 'rgba(108,99,255,0.82)';
   const solidGreen  = 'rgba(16,185,129,0.82)';
@@ -1672,14 +1677,20 @@ function renderClientesAtivos(){
 
   const fmtK = v => {
     const abs=Math.abs(v);
-    if(abs>=1000000) return 'R$'+(v/1000000).toFixed(1)+'M';
-    if(abs>=1000) return 'R$'+(v/1000).toFixed(0)+'K';
-    return 'R$'+v;
+    if(abs>=1000000) return (v/1000000).toFixed(1)+'M';
+    if(abs>=1000) return (v/1000).toFixed(0)+'K';
+    return ''+v;
+  };
+  const fmtK1 = v => {
+    const abs=Math.abs(v);
+    if(abs>=1000000) return (v/1000000).toFixed(1)+'M';
+    if(abs>=1000) return (v/1000).toFixed(1)+'K';
+    return v.toFixed(1);
   };
   const fmtAbs = v => {
     const abs=Math.abs(v);
-    if(abs>=1000) return 'R$'+(v/1000).toFixed(0)+'K';
-    return 'R$'+v;
+    if(abs>=1000) return (v/1000).toFixed(0)+'K';
+    return ''+v;
   };
   const fmtPct = v => v.toFixed(1)+'%';
 
@@ -1695,10 +1706,11 @@ function renderClientesAtivos(){
       _caCharts[id]=c;
     }
   };
-  makeChart('ca-gmv', gmvs, solidBlue,   makeOpts('R$ ','',0), fmtK);
-  makeChart('ca-cli', clis, solidTeal,   makeOpts('','',0),    v=>v.toLocaleString('pt-BR'));
-  makeChart('ca-lc2', lc2s, solidGreen,  makeOpts('R$ ','',0), fmtAbs);
-  makeChart('ca-pct', pcts, solidOrange, makeOpts('','%',1),   fmtPct);
+  makeChart('ca-gmv',    gmvs,      solidBlue,   makeOpts('','',0), fmtK);
+  makeChart('ca-cli',    clis,      solidTeal,   makeOpts('','',0), v=>v.toLocaleString('pt-BR'));
+  makeChart('ca-lc2',    lc2s,      solidGreen,  makeOpts('','',0), fmtAbs);
+  makeChart('ca-pct',    pcts,      solidOrange, makeOpts('','%',1),fmtPct);
+  makeChart('ca-gmvcli', gmvPerCli, solidBlue,   makeOpts('','',0), fmtK1);
 }
 
 // ─── RETARGETING ──────────────────────────────────────────────────────────────
