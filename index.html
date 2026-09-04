@@ -116,7 +116,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="hdr">
   <h1>Funil ADS — Dashboard</h1>
   <div class="hdr-right">
-    <span class="last-updated" id="lastUpdated">Atualizado em 04/09/2026 10:29 (horário de Fortaleza)</span>
+    <span class="last-updated" id="lastUpdated">Atualizado em 04/09/2026 10:35 (horário de Fortaleza)</span>
   </div>
 </div>
 
@@ -988,10 +988,22 @@ function computeAdjustedPlans(){
   //         não vai trabalhar; usando o plano base como peso, uma semana com
   //         plano 0 fica com 0 aqui também, e o gap inteiro cai nas semanas
   //         onde a pessoa realmente vai estar disponível.
+  // IMPORTANTE: uma semana de _DONE_WEEKS só entra no cálculo pelo REALIZADO
+  // se ela já tiver terminado de verdade (comparando com a data de hoje). Uma
+  // semana que ainda não aconteceu (ex.: estamos na semana 1 mas 07/09 e
+  // 14/09 também estão em _DONE_WEEKS por já terem plano "fechado") conta
+  // pelo planejado (já ajustado pelo Passo 1), não por realizado=0 — senão o
+  // mês inteiro cai cedo demais nas duas últimas semanas e a meta delas
+  // dispara de forma artificial logo no início do mês (foi o que a Stephanie
+  // percebeu: metas "estranhas" nas semanas 21/09 e 28/09 já no dia 4).
   const _tailWeeks = AUG_WEEKS.slice(_ADJ_START_IDX);
   Object.keys(MONTHLY_TARGETS).forEach(mKey=>{
     const def=METRIC_DEFS[mKey]; if(!def) return;
-    const mtd=_DONE_WEEKS.reduce((s,wk)=>s+countInSemana(def.semanaCol,wk,def),0);
+    const mtd=_DONE_WEEKS.reduce((s,wkId)=>{
+      const wkObj=AUG_WEEKS.find(w=>w.id===wkId);
+      const wkEnded=wkObj&&today>wkObj.to;
+      return s+(wkEnded?countInSemana(def.semanaCol,wkId,def):(adj[wkId][mKey]||0));
+    },0);
     const gap=Math.max(0, MONTHLY_TARGETS[mKey]-mtd);
     const tailWeightTotal=_tailWeeks.reduce((s,w)=>s+(AUG_PLAN[w.id][mKey]||0),0);
     // fallback pra dias úteis só se NINGUÉM tiver plano base nas semanas finais
