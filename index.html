@@ -119,7 +119,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="hdr">
   <h1>Funil ADS — Dashboard</h1>
   <div class="hdr-right">
-    <span class="last-updated" id="lastUpdated">Atualizado em 28/09/2026 10:26 (horário de Fortaleza)</span>
+    <span class="last-updated" id="lastUpdated">Atualizado em 28/09/2026 10:38 (horário de Fortaleza)</span>
   </div>
 </div>
 
@@ -547,9 +547,23 @@ const _SEP_EXACT_PLAN = {
 Object.keys(_SEP_EXACT_PLAN).forEach(mKey=>{
   AUG_WEEKS.forEach(w=>{ AUG_PLAN[w.id][mKey] = _SEP_EXACT_PLAN[mKey][w.id]; });
 });
-// Semanas já encerradas cujo gap está incorporado via computeAdjustedPlans dinamicamente
-const _DONE_WEEKS = ['31/08','07/09','14/09'];
-const _ADJ_START_IDX = AUG_WEEKS.findIndex(w=>w.id==='21/09');
+// Semanas já encerradas cujo gap está incorporado via computeAdjustedPlans
+// dinamicamente. Calculado a partir de "hoje" (não mais uma lista fixa) —
+// antes ficava hardcoded em ['31/08','07/09','14/09'] com a "cauda" (semanas
+// sujeitas a redistribuição no Passo 2) começando fixo em '21/09'. Isso
+// funcionava enquanto a semana de 21/09 ainda não tinha fechado, mas assim
+// que ela fechou de verdade o código continuou tratando-a como parte da
+// "cauda" — disputando o gap com a última semana em vez de já ter seu
+// realizado consolidado no MTD — e por isso a meta (de leads/cadastros e
+// principalmente ativação, que é onde a Stephanie notou) parava de refletir
+// o gap corretamente a partir do momento em que uma nova semana fechava.
+// Agora _ADJ_START_IDX é sempre a semana atual (ou a última, se o mês já
+// acabou) e _DONE_WEEKS é tudo antes dela — os dois se atualizam sozinhos
+// conforme os dias passam, sem precisar editar isso toda semana.
+const _todayForAdjWeeks = new Date().toISOString().slice(0,10);
+const _curWeekIdxForAdj = AUG_WEEKS.findIndex(w=>_todayForAdjWeeks<=w.to);
+const _ADJ_START_IDX = _curWeekIdxForAdj>=0 ? _curWeekIdxForAdj : AUG_WEEKS.length-1;
+const _DONE_WEEKS = AUG_WEEKS.slice(0,_ADJ_START_IDX).map(w=>w.id);
 let _selectedWeek = '31/08';
 const LEAD_KEYS = new Set(['jL','pL','vL']);
 // Origens do canal Ads consideradas nas metas (exclui Inbound e Stone — Stone
