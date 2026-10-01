@@ -119,7 +119,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="hdr">
   <h1>Funil ADS — Dashboard</h1>
   <div class="hdr-right">
-    <span class="last-updated" id="lastUpdated">Atualizado em 01/10/2026 10:01 (horário de Fortaleza)</span>
+    <span class="last-updated" id="lastUpdated">Atualizado em 01/10/2026 15:09 (horário de Fortaleza)</span>
   </div>
 </div>
 
@@ -2417,6 +2417,24 @@ function apCountInboundAtiv(name,dateCol,monthKey){
     _apDateInMonth(r,dateCol,monthKey)
   ).length;
 }
+// Ativação Google Ads / Indicação: mesma lógica do Inbound, trocando a
+// origem. Origens que a planilha já traz separadas do canal Ads principal
+// (Campanha Ads/2/3/Patagon) mas que também têm "vendedor ativação"
+// preenchido direto (sem passar por "Ganho - Ativado" como a Stone).
+function apCountGoogleAdsAtiv(name,dateCol,monthKey){
+  return _allRows.filter(r=>
+    (r['vendedor ativação']||'').trim()===name &&
+    (r['origem do lead']||'').trim()==='Google ADS' &&
+    _apDateInMonth(r,dateCol,monthKey)
+  ).length;
+}
+function apCountIndicacaoAtiv(name,dateCol,monthKey){
+  return _allRows.filter(r=>
+    (r['vendedor ativação']||'').trim()===name &&
+    (r['origem do lead']||'').trim()==='Indicação' &&
+    _apDateInMonth(r,dateCol,monthKey)
+  ).length;
+}
 // Ativação Stone: origem Stone. Linhas que NÃO são "Cliente Clubbi" (lead
 // novo virando cliente pela primeira vez) contam direto pela data de
 // ativação. Linhas "Cliente Clubbi" (cliente já existente sendo reativado)
@@ -2481,28 +2499,34 @@ function _apBuildTable(elId,dateCol,monthKey){
     <th>Ativação ADS</th>
     <th>Ativação Stone</th>
     <th>Ativação Inbound</th>
+    <th>Ativação Google Ads</th>
+    <th>Ativação Indicação</th>
     <th>Positivação Retargeting</th>
     <th>Positivação Stone</th>
     <th>Total Ativações</th>
     <th>Total Positivações</th>
     <th>Total</th>
   </tr></thead>`;
-  let totAds=0,totSt=0,totIn=0,totRetPos=0,totStPos=0,totAtiv=0,totPos=0,totGeral=0;
+  let totAds=0,totSt=0,totIn=0,totGa=0,totInd=0,totRetPos=0,totStPos=0,totAtiv=0,totPos=0,totGeral=0;
   const rows=AP_NAMES.map(({key,label})=>{
     const ads=apCountAdsAtiv(key,dateCol,monthKey);
     const st=apCountStoneAtiv(key,dateCol,monthKey);
     const inb=apCountInboundAtiv(key,dateCol,monthKey);
+    const ga=apCountGoogleAdsAtiv(key,dateCol,monthKey);
+    const ind=apCountIndicacaoAtiv(key,dateCol,monthKey);
     const retPos=apCountRetPositivacao(key,monthKey);
     const stPos=apCountStonePositivacao(key,monthKey);
-    const tAtiv=ads+st+inb;
+    const tAtiv=ads+st+inb+ga+ind;
     const tPos=retPos+stPos;
     const tGeral=tAtiv+tPos;
-    totAds+=ads;totSt+=st;totIn+=inb;totRetPos+=retPos;totStPos+=stPos;totAtiv+=tAtiv;totPos+=tPos;totGeral+=tGeral;
+    totAds+=ads;totSt+=st;totIn+=inb;totGa+=ga;totInd+=ind;totRetPos+=retPos;totStPos+=stPos;totAtiv+=tAtiv;totPos+=tPos;totGeral+=tGeral;
     return `<tr>
       <td class="left">${label}</td>
       <td>${ads}</td>
       <td>${st}</td>
       <td>${inb}</td>
+      <td>${ga}</td>
+      <td>${ind}</td>
       <td>${retPos}</td>
       <td>${stPos}</td>
       <td class="md-real">${tAtiv}</td>
@@ -2515,6 +2539,8 @@ function _apBuildTable(elId,dateCol,monthKey){
       <td>${totAds}</td>
       <td>${totSt}</td>
       <td>${totIn}</td>
+      <td>${totGa}</td>
+      <td>${totInd}</td>
       <td>${totRetPos}</td>
       <td>${totStPos}</td>
       <td>${totAtiv}</td>
